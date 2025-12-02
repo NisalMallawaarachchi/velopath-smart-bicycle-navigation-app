@@ -130,6 +130,24 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
+  Widget _legend() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: const [
+          _LegendItem(color: Color(0xFF43A047), label: 'Low hazard'),
+          SizedBox(width: 12),
+          _LegendItem(color: Color(0xFFFFA726), label: 'Medium hazard'),
+          SizedBox(width: 12),
+          _LegendItem(color: Color(0xFFE53935), label: 'High hazard'),
+          SizedBox(width: 12),
+          _LegendItem(color: Color(0xFF1E88E5), label: 'Scenic'),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<RoutingEngineProvider>(context);
@@ -162,20 +180,35 @@ class _MapScreenState extends State<MapScreen> {
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                // START TEXT FIELD
-                TextField(
-                  controller: _startController,
-                  decoration: const InputDecoration(
-                    labelText: 'Start location',
-                    border: OutlineInputBorder(),
-                    suffixIcon: Icon(Icons.search),
-                  ),
-                  onChanged: (value) {
-                    if (value.trim().length >= 2) {
-                      provider.searchPlaces(value, isStart: true);
-                    }
-                  },
+                // START TEXT FIELD + "Use my location"
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: _startController,
+                      decoration: const InputDecoration(
+                        labelText: 'Start location',
+                        border: OutlineInputBorder(),
+                        suffixIcon: Icon(Icons.search),
+                      ),
+                      onChanged: (value) {
+                        if (value.trim().length >= 2) {
+                          provider.searchPlaces(value, isStart: true);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 6),
+                    TextButton.icon(
+                      onPressed: () async {
+                        await provider.useCurrentLocationAsStart();
+                        _startController.text = "My Location";
+                      },
+                      icon: const Icon(Icons.my_location, size: 20),
+                      label: const Text("Use my location"),
+                    ),
+                  ],
                 ),
+
                 const SizedBox(height: 12),
 
                 // END TEXT FIELD
@@ -202,10 +235,18 @@ class _MapScreenState extends State<MapScreen> {
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       children: [
-                        _profileButton(provider, "Shortest", RouteProfile.shortest),
+                        _profileButton(
+                          provider,
+                          "Shortest",
+                          RouteProfile.shortest,
+                        ),
                         _profileButton(provider, "Safest", RouteProfile.safest),
                         _profileButton(provider, "Scenic", RouteProfile.scenic),
-                        _profileButton(provider, "Balanced", RouteProfile.balanced),
+                        _profileButton(
+                          provider,
+                          "Balanced",
+                          RouteProfile.balanced,
+                        ),
                       ],
                     ),
                   ),
@@ -215,16 +256,8 @@ class _MapScreenState extends State<MapScreen> {
           ),
 
           // █████████ SUGGESTIONS █████████
-          _suggestionList(
-            provider.startSuggestions,
-            true,
-            provider,
-          ),
-          _suggestionList(
-            provider.endSuggestions,
-            false,
-            provider,
-          ),
+          _suggestionList(provider.startSuggestions, true, provider),
+          _suggestionList(provider.endSuggestions, false, provider),
 
           // █████████ MAP █████████
           Expanded(
@@ -232,8 +265,9 @@ class _MapScreenState extends State<MapScreen> {
               options: MapOptions(
                 initialCenter: initialCenter,
                 initialZoom: initialZoom,
-                interactionOptions:
-                    const InteractionOptions(flags: InteractiveFlag.all),
+                interactionOptions: const InteractionOptions(
+                  flags: InteractiveFlag.all,
+                ),
               ),
               children: [
                 TileLayer(
@@ -241,7 +275,13 @@ class _MapScreenState extends State<MapScreen> {
                   userAgentPackageName: "com.velopath.app",
                 ),
 
-                if (routePoints.isNotEmpty)
+                // ✅ Use color-coded polylines from provider
+                if (provider.coloredPolylines.isNotEmpty)
+                  PolylineLayer(
+                    polylines: provider.coloredPolylines,
+                  )
+                // fallback (should rarely be used now)
+                else if (routePoints.isNotEmpty)
                   PolylineLayer(
                     polylines: [
                       Polyline(
@@ -252,6 +292,7 @@ class _MapScreenState extends State<MapScreen> {
                     ],
                   ),
 
+                // Start & End markers
                 MarkerLayer(
                   markers: [
                     if (provider.startPoint != null)
@@ -259,16 +300,22 @@ class _MapScreenState extends State<MapScreen> {
                         point: provider.startPoint!,
                         width: 50,
                         height: 50,
-                        child: const Icon(Icons.location_on,
-                            size: 40, color: Colors.green),
+                        child: const Icon(
+                          Icons.location_on,
+                          size: 40,
+                          color: Colors.green,
+                        ),
                       ),
                     if (provider.endPoint != null)
                       Marker(
                         point: provider.endPoint!,
                         width: 50,
                         height: 50,
-                        child: const Icon(Icons.flag,
-                            size: 36, color: Colors.red),
+                        child: const Icon(
+                          Icons.flag,
+                          size: 36,
+                          color: Colors.red,
+                        ),
                       ),
                   ],
                 ),
@@ -276,20 +323,59 @@ class _MapScreenState extends State<MapScreen> {
             ),
           ),
 
-          // █████████ SUMMARY █████████
+          // █████████ SUMMARY + LEGEND █████████
           Container(
-            padding: const EdgeInsets.symmetric(vertical: 10),
+            padding: const EdgeInsets.symmetric(vertical: 8),
             color: Colors.purple.shade50,
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text("Total distance: ${provider.totalDistanceKm.toStringAsFixed(3)} km"),
+                _legend(),
+                const SizedBox(height: 4),
+                Text(
+                  "Total distance: ${provider.totalDistanceKm.toStringAsFixed(3)} km",
+                ),
                 Text("Total hazards: ${provider.totalHazards}"),
-                Text("Avg POI score: ${provider.avgPoiScore.toStringAsFixed(2)}"),
+                Text(
+                  "Avg POI score: ${provider.avgPoiScore.toStringAsFixed(2)}",
+                ),
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _LegendItem extends StatelessWidget {
+  final Color color;
+  final String label;
+
+  const _LegendItem({
+    super.key,
+    required this.color,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 14,
+          height: 14,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(3),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 11),
+        ),
+      ],
     );
   }
 }
