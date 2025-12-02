@@ -1,8 +1,11 @@
 // lib/modules/routing_engine/providers/routing_engine_provider.dart
+import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:ui' show Color;
-import 'package:flutter_map/flutter_map.dart';
+
 import 'package:flutter/foundation.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
@@ -33,6 +36,19 @@ class ColoredSegment {
   ColoredSegment({
     required this.points,
     required this.color,
+  });
+}
+
+/// Simple turn-by-turn instruction
+class TurnInstruction {
+  final String text;            // "Turn left", "Continue straight", etc.
+  final double distanceMeters;  // distance from previous instruction
+  final LatLng location;        // where this instruction happens
+
+  TurnInstruction({
+    required this.text,
+    required this.distanceMeters,
+    required this.location,
   });
 }
 
@@ -133,6 +149,29 @@ class RoutingEngineProvider extends ChangeNotifier {
 
   bool _isRouting = false;
   bool get isRouting => _isRouting;
+
+  // =======================
+  // NAVIGATION STATE
+  // =======================
+
+  bool _isNavigating = false;
+  bool get isNavigating => _isNavigating;
+
+  List<TurnInstruction> _instructions = [];
+  List<TurnInstruction> get instructions => _instructions;
+
+  int _currentInstructionIndex = 0;
+  int get currentInstructionIndex => _currentInstructionIndex;
+
+  TurnInstruction? get currentInstruction =>
+      (_instructions.isEmpty || _currentInstructionIndex >= _instructions.length)
+          ? null
+          : _instructions[_currentInstructionIndex];
+
+  LatLng? _currentLocation;
+  LatLng? get currentLocation => _currentLocation;
+
+  StreamSubscription<Position>? _positionSub;
 
   // =======================
   // Set Profile
@@ -302,6 +341,166 @@ class RoutingEngineProvider extends ChangeNotifier {
   }
 
   // =======================
+  // START / STOP NAVIGATION
+  // =======================
+
+  Future<void> startNavigation() async {
+    if (_routePoints.length < 2) return;
+
+    if (_instructions.isEmpty) {
+      _buildTurnInstructions();
+    }
+
+    _isNavigating = true;
+    _currentInstructionIndex = 0;
+    notifyListeners();
+
+    await _startListeningToPosition();
+  }
+
+  Future<void> stopNavigation() async {
+    _isNavigating = false;
+    _currentLocation = null;
+    await _positionSub?.cancel();
+    _positionSub = null;
+    notifyListeners();
+  }
+
+  Future<void> _startListeningToPosition() async {
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        if (kDebugMode) {
+          print("❌ Navigation position permission denied");
+        }
+        return;
+      }
+    }
+
+    _positionSub?.cancel();
+    _positionSub = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 5, // meters before update
+      ),
+    ).listen(_onPositionUpdate);
+  }
+
+  void _onPositionUpdate(Position pos) {
+    _currentLocation = LatLng(pos.latitude, pos.longitude);
+
+    // advance instruction when close to its location
+    if (_isNavigating &&
+        _instructions.isNotEmpty &&
+        _currentInstructionIndex < _instructions.length) {
+      final currInstr = _instructions[_currentInstructionIndex];
+      final d = Distance();
+      final distToInstr = d.as(
+        LengthUnit.Meter,
+        _currentLocation!,
+        currInstr.location,
+      );
+
+      if (distToInstr < 30 &&
+          _currentInstructionIndex < _instructions.length - 1) {
+        _currentInstructionIndex++;
+      }
+    }
+
+    notifyListeners();
+  }
+
+  // =======================
+  // BUILD TURN INSTRUCTIONS
+  // =======================
+
+  void _buildTurnInstructions() {
+    _instructions = [];
+
+    if (_routePoints.length < 2) return;
+
+    final distanceCalc = Distance();
+
+    // Start
+    _instructions.add(
+      TurnInstruction(
+        text: "Start riding",
+        distanceMeters: 0,
+        location: _routePoints.first,
+      ),
+    );
+
+    double segmentDistance = 0;
+    LatLng prev = _routePoints.first;
+
+    for (int i = 1; i < _routePoints.length - 1; i++) {
+      final curr = _routePoints[i];
+      final next = _routePoints[i + 1];
+
+      segmentDistance += distanceCalc.as(LengthUnit.Meter, prev, curr);
+
+      final bearing1 = _bearing(prev, curr);
+      final bearing2 = _bearing(curr, next);
+      var angle = bearing2 - bearing1;
+
+      // normalize to -180..180
+      while (angle > 180) angle -= 360;
+      while (angle < -180) angle += 360;
+
+      String? text;
+
+      if (angle > 35) {
+        text = "Turn right";
+      } else if (angle < -35) {
+        text = "Turn left";
+      } else if (segmentDistance > 300) {
+        text = "Continue straight";
+      }
+
+      if (text != null) {
+        _instructions.add(
+          TurnInstruction(
+            text: "$text in ${segmentDistance.toStringAsFixed(0)} m",
+            distanceMeters: segmentDistance,
+            location: curr,
+          ),
+        );
+        segmentDistance = 0;
+      }
+
+      prev = curr;
+    }
+
+    // Arrival
+    _instructions.add(
+      TurnInstruction(
+        text: "You have arrived",
+        distanceMeters: 0,
+        location: _routePoints.last,
+      ),
+    );
+  }
+
+  double _bearing(LatLng a, LatLng b) {
+    final lat1 = _degToRad(a.latitude);
+    final lat2 = _degToRad(b.latitude);
+    final dLon = _degToRad(b.longitude - a.longitude);
+
+    final y = math.sin(dLon) * math.cos(lat2);
+    final x = math.cos(lat1) * math.sin(lat2) -
+        math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
+
+    var brng = math.atan2(y, x);
+    brng = brng * 180 / math.pi;
+    return (brng + 360) % 360;
+  }
+
+  double _degToRad(double d) => d * math.pi / 180;
+
+  // =======================
   // ROUTING TO BACKEND
   // =======================
 
@@ -311,6 +510,7 @@ class RoutingEngineProvider extends ChangeNotifier {
     _isRouting = true;
     _routePoints = [];
     _segments = [];
+    _instructions = [];
     notifyListeners();
 
     try {
@@ -395,7 +595,7 @@ class RoutingEngineProvider extends ChangeNotifier {
           color = const Color(0xFF43A047); // green
         }
 
-        // If scenic profile important, let high scenic override hazard
+        // Scenic override
         if (poiScore > 0 && poiScore >= 0.6) {
           color = const Color(0xFF1E88E5); // blue for scenic
         }
@@ -407,12 +607,16 @@ class RoutingEngineProvider extends ChangeNotifier {
 
       _routePoints = allPoints;
       _segments = segments;
+
+      // build instructions for navigation
+      _buildTurnInstructions();
     } catch (e) {
       if (kDebugMode) {
         print("❌ Route error: $e");
       }
       _routePoints = [];
       _segments = [];
+      _instructions = [];
     }
 
     _isRouting = false;
@@ -428,11 +632,12 @@ class RoutingEngineProvider extends ChangeNotifier {
     _endPoint = null;
     _routePoints = [];
     _segments = [];
+    _instructions = [];
     _totalDistanceKm = 0;
     _totalHazards = 0;
     _avgPoiScore = 0;
     _startSuggestions = [];
     _endSuggestions = [];
-    notifyListeners();
+    stopNavigation();
   }
 }

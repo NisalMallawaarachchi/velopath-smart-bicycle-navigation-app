@@ -6,15 +6,45 @@ const router = express.Router();
 
 /**
  * GET /api/pg-routing/route
- * Query params:
- *   startLon, startLat, endLon, endLat
+ *
+ * Required query params:
+ *   - startLon, startLat, endLon, endLat
+ *
+ * Optional:
+ *   - profile = shortest | safest | scenic | balanced
  */
 router.get("/route", async (req, res) => {
   try {
-    const { startLon, startLat, endLon, endLat } = req.query;
+    const { startLon, startLat, endLon, endLat, profile } = req.query;
 
     if (!startLon || !startLat || !endLon || !endLat) {
       return res.status(400).json({ error: "Missing coordinates" });
+    }
+
+    // 0️⃣ Decide weights based on profile
+    let wDist, wHazard, wScenic;
+    switch ((profile || "balanced").toLowerCase()) {
+      case "shortest":
+        wDist = 0.7;
+        wHazard = 0.2;
+        wScenic = 0.1;
+        break;
+      case "safest":
+        wDist = 0.2;
+        wHazard = 0.7;
+        wScenic = 0.1;
+        break;
+      case "scenic":
+        wDist = 0.2;
+        wHazard = 0.1;
+        wScenic = 0.7;
+        break;
+      case "balanced":
+      default:
+        wDist = 0.4;
+        wHazard = 0.3;
+        wScenic = 0.3;
+        break;
     }
 
     // 1️⃣ Detect component near the START point
@@ -67,28 +97,57 @@ router.get("/route", async (req, res) => {
       });
     }
 
-    // 3️⃣ Run Dijkstra within that component
+    // 3️⃣ Run Dijkstra with multi-objective cost
     const route = await db.query(
       `
-      SELECT * FROM pgr_dijkstra(
-        $$
-          SELECT road_id AS id,
-                 source,
-                 target,
-                 cost,
-                 reverse_cost
-          FROM roads
-          WHERE component = ${component}
-        $$,
-        $1::BIGINT,
-        $2::BIGINT
-      );
+      WITH route AS (
+        SELECT * FROM pgr_dijkstra(
+          $$
+            SELECT 
+              r.road_id AS id,
+              r.source,
+              r.target,
+              (
+                ${wDist}   * (r.length_meters / 1000.0) +
+                ${wHazard} * COALESCE(rs.hazard_count, 0) +
+                ${wScenic} * (1.0 / (1.0 + COALESCE(rs.poi_score, 0)))
+              ) AS cost,
+              (
+                ${wDist}   * (r.length_meters / 1000.0) +
+                ${wHazard} * COALESCE(rs.hazard_count, 0) +
+                ${wScenic} * (1.0 / (1.0 + COALESCE(rs.poi_score, 0)))
+              ) AS reverse_cost
+            FROM roads r
+            LEFT JOIN road_segment_data rs
+              ON r.road_id = rs.road_id
+            WHERE r.component = ${component}
+          $$,
+          $1::BIGINT,
+          $2::BIGINT
+        )
+      )
+      SELECT 
+        r.road_id AS id,
+        r.length_meters,
+        ST_AsGeoJSON(r.geometry) AS geojson,
+        COALESCE(rs.hazard_count, 0) AS hazard_count,
+        COALESCE(rs.poi_score, 0) AS poi_score,
+        route.seq,
+        route.cost
+      FROM route
+      JOIN roads r
+        ON route.edge = r.road_id
+      LEFT JOIN road_segment_data rs
+        ON r.road_id = rs.road_id
+      WHERE route.edge <> -1
+      ORDER BY route.seq;
       `,
       [startNode, endNode]
     );
 
-    // No route found
-    if (route.rows.length === 0) {
+    const edges = route.rows;
+
+    if (edges.length === 0) {
       return res.json({
         error: "No route found within this component",
         component,
@@ -97,39 +156,46 @@ router.get("/route", async (req, res) => {
       });
     }
 
-    // 4️⃣ Get geometries for all edges in the route
-    const edges = await db.query(
-      `
-      SELECT road_id AS id, geometry
-      FROM roads
-      WHERE road_id IN (
-        SELECT edge FROM (
-          SELECT * FROM pgr_dijkstra(
-            $$
-              SELECT road_id AS id,
-                     source,
-                     target,
-                     cost,
-                     reverse_cost
-              FROM roads
-              WHERE component = ${component}
-            $$,
-            $1::BIGINT,
-            $2::BIGINT
-          )
-        ) AS path_edges
-        WHERE edge <> -1
-      );
-      `,
-      [startNode, endNode]
-    );
+    // 4️⃣ Compute summary statistics in JS
+    let totalDistanceKm = 0;
+    let totalHazard = 0;
+    let totalPoiScore = 0;
+
+    edges.forEach((row) => {
+      totalDistanceKm += (row.length_meters || 0) / 1000.0;
+      totalHazard += row.hazard_count || 0;
+      totalPoiScore += row.poi_score || 0;
+    });
+
+    const avgPoiScore = edges.length > 0 ? totalPoiScore / edges.length : 0;
+
+    // 5️⃣ Prepare response
+    const edgesFormatted = edges.map((row) => ({
+      id: row.id,
+      length_meters: row.length_meters,
+      hazard_count: row.hazard_count,
+      poi_score: row.poi_score,
+      cost: row.cost,
+      geojson: JSON.parse(row.geojson), // LineString with coordinates
+    }));
 
     return res.json({
+      profile: (profile || "balanced").toLowerCase(),
+      weights: {
+        wDist,
+        wHazard,
+        wScenic,
+      },
       component,
       startNode,
       endNode,
-      pathCount: route.rows.length,
-      edges: edges.rows,
+      pathCount: edges.length,
+      summary: {
+        totalDistanceKm,
+        totalHazard,
+        avgPoiScore,
+      },
+      edges: edgesFormatted,
     });
   } catch (error) {
     console.error("Routing error:", error);

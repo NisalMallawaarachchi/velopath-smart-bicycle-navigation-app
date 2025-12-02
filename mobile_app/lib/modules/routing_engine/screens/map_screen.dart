@@ -16,6 +16,7 @@ class MapScreen extends StatefulWidget {
 class _MapScreenState extends State<MapScreen> {
   late TextEditingController _startController;
   late TextEditingController _endController;
+  final MapController _mapController = MapController();
 
   @override
   void initState() {
@@ -130,22 +131,12 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  Widget _legend() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: const [
-          _LegendItem(color: Color(0xFF43A047), label: 'Low hazard'),
-          SizedBox(width: 12),
-          _LegendItem(color: Color(0xFFFFA726), label: 'Medium hazard'),
-          SizedBox(width: 12),
-          _LegendItem(color: Color(0xFFE53935), label: 'High hazard'),
-          SizedBox(width: 12),
-          _LegendItem(color: Color(0xFF1E88E5), label: 'Scenic'),
-        ],
-      ),
-    );
+  IconData _iconForInstruction(String text) {
+    final lower = text.toLowerCase();
+    if (lower.contains('left')) return Icons.turn_left;
+    if (lower.contains('right')) return Icons.turn_right;
+    if (lower.contains('arrived')) return Icons.flag;
+    return Icons.straight;
   }
 
   @override
@@ -158,7 +149,10 @@ class _MapScreenState extends State<MapScreen> {
     LatLng initialCenter;
     double initialZoom;
 
-    if (routePoints.isNotEmpty) {
+    if (provider.currentLocation != null && provider.isNavigating) {
+      initialCenter = provider.currentLocation!;
+      initialZoom = 14;
+    } else if (routePoints.isNotEmpty) {
       initialCenter = routePoints[routePoints.length ~/ 2];
       initialZoom = 12;
     } else if (provider.startPoint != null) {
@@ -168,6 +162,11 @@ class _MapScreenState extends State<MapScreen> {
       initialCenter = centerSL;
       initialZoom = 7.5;
     }
+
+    final canStartRide =
+        provider.startPoint != null && provider.endPoint != null && routePoints.length > 1;
+
+    final currentInstruction = provider.currentInstruction;
 
     return Scaffold(
       appBar: AppBar(
@@ -180,7 +179,7 @@ class _MapScreenState extends State<MapScreen> {
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                // START TEXT FIELD + "Use my location"
+                // START TEXT FIELD + use my location
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -201,7 +200,7 @@ class _MapScreenState extends State<MapScreen> {
                     TextButton.icon(
                       onPressed: () async {
                         await provider.useCurrentLocationAsStart();
-                        _startController.text = "My Location";
+                        _startController.text = "My location";
                       },
                       icon: const Icon(Icons.my_location, size: 20),
                       label: const Text("Use my location"),
@@ -228,7 +227,7 @@ class _MapScreenState extends State<MapScreen> {
 
                 const SizedBox(height: 12),
 
-                // █████ Profile Buttons (Scrollable) █████
+                // Profile Buttons
                 SizedBox(
                   height: 45,
                   child: SingleChildScrollView(
@@ -240,8 +239,16 @@ class _MapScreenState extends State<MapScreen> {
                           "Shortest",
                           RouteProfile.shortest,
                         ),
-                        _profileButton(provider, "Safest", RouteProfile.safest),
-                        _profileButton(provider, "Scenic", RouteProfile.scenic),
+                        _profileButton(
+                          provider,
+                          "Safest",
+                          RouteProfile.safest,
+                        ),
+                        _profileButton(
+                          provider,
+                          "Scenic",
+                          RouteProfile.scenic,
+                        ),
                         _profileButton(
                           provider,
                           "Balanced",
@@ -251,6 +258,28 @@ class _MapScreenState extends State<MapScreen> {
                     ),
                   ),
                 ),
+
+                const SizedBox(height: 8),
+
+                // Start / End ride button
+                if (canStartRide && !provider.isNavigating)
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: provider.startNavigation,
+                      icon: const Icon(Icons.directions_bike),
+                      label: const Text("Start ride"),
+                    ),
+                  ),
+                if (provider.isNavigating)
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: provider.stopNavigation,
+                      icon: const Icon(Icons.stop),
+                      label: const Text("End ride"),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -259,79 +288,144 @@ class _MapScreenState extends State<MapScreen> {
           _suggestionList(provider.startSuggestions, true, provider),
           _suggestionList(provider.endSuggestions, false, provider),
 
-          // █████████ MAP █████████
+          // █████████ MAP + LEGEND █████████
           Expanded(
-            child: FlutterMap(
-              options: MapOptions(
-                initialCenter: initialCenter,
-                initialZoom: initialZoom,
-                interactionOptions: const InteractionOptions(
-                  flags: InteractiveFlag.all,
-                ),
-              ),
+            child: Column(
               children: [
-                TileLayer(
-                  urlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-                  userAgentPackageName: "com.velopath.app",
-                ),
+                Expanded(
+                  child: FlutterMap(
+                    mapController: _mapController,
+                    options: MapOptions(
+                      initialCenter: initialCenter,
+                      initialZoom: initialZoom,
+                      interactionOptions: const InteractionOptions(
+                        flags: InteractiveFlag.all,
+                      ),
+                    ),
+                    children: [
+                      TileLayer(
+                        urlTemplate:
+                            "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                        userAgentPackageName: "com.velopath.app",
+                      ),
 
-                // ✅ Use color-coded polylines from provider
-                if (provider.coloredPolylines.isNotEmpty)
-                  PolylineLayer(
-                    polylines: provider.coloredPolylines,
-                  )
-                // fallback (should rarely be used now)
-                else if (routePoints.isNotEmpty)
-                  PolylineLayer(
-                    polylines: [
-                      Polyline(
-                        points: routePoints,
-                        strokeWidth: 4,
-                        color: Colors.blue,
+                      // Colored route segments
+                      if (provider.coloredPolylines.isNotEmpty)
+                        PolylineLayer(
+                          polylines: provider.coloredPolylines,
+                        ),
+
+                      // Markers: start, end, current location
+                      MarkerLayer(
+                        markers: [
+                          if (provider.startPoint != null)
+                            Marker(
+                              point: provider.startPoint!,
+                              width: 50,
+                              height: 50,
+                              child: const Icon(
+                                Icons.location_on,
+                                size: 40,
+                                color: Colors.green,
+                              ),
+                            ),
+                          if (provider.endPoint != null)
+                            Marker(
+                              point: provider.endPoint!,
+                              width: 50,
+                              height: 50,
+                              child: const Icon(
+                                Icons.flag,
+                                size: 36,
+                                color: Colors.red,
+                              ),
+                            ),
+                          if (provider.currentLocation != null &&
+                              provider.isNavigating)
+                            Marker(
+                              point: provider.currentLocation!,
+                              width: 40,
+                              height: 40,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.blue.withOpacity(0.7),
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 3,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ],
                   ),
+                ),
 
-                // Start & End markers
-                MarkerLayer(
-                  markers: [
-                    if (provider.startPoint != null)
-                      Marker(
-                        point: provider.startPoint!,
-                        width: 50,
-                        height: 50,
-                        child: const Icon(
-                          Icons.location_on,
-                          size: 40,
-                          color: Colors.green,
-                        ),
-                      ),
-                    if (provider.endPoint != null)
-                      Marker(
-                        point: provider.endPoint!,
-                        width: 50,
-                        height: 50,
-                        child: const Icon(
-                          Icons.flag,
-                          size: 36,
-                          color: Colors.red,
-                        ),
-                      ),
-                  ],
+                const SizedBox(height: 6),
+
+                // Legend
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: const [
+                      _LegendItem(color: Color(0xFF43A047), label: 'Low hazard'),
+                      _LegendItem(color: Color(0xFFFFA726), label: 'Medium hazard'),
+                      _LegendItem(color: Color(0xFFE53935), label: 'High hazard'),
+                      _LegendItem(color: Color(0xFF1E88E5), label: 'Scenic'),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
 
-          // █████████ SUMMARY + LEGEND █████████
+          // █████████ NAVIGATION PANEL + SUMMARY █████████
           Container(
-            padding: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
             color: Colors.purple.shade50,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _legend(),
-                const SizedBox(height: 4),
+                if (provider.isNavigating && currentInstruction != null) ...[
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 20,
+                        backgroundColor: Colors.white,
+                        child: Icon(
+                          _iconForInstruction(currentInstruction.text),
+                          color: Colors.deepPurple,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              currentInstruction.text,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              "Step ${provider.currentInstructionIndex + 1} of ${provider.instructions.length}",
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                ],
                 Text(
                   "Total distance: ${provider.totalDistanceKm.toStringAsFixed(3)} km",
                 ),
@@ -353,7 +447,6 @@ class _LegendItem extends StatelessWidget {
   final String label;
 
   const _LegendItem({
-    super.key,
     required this.color,
     required this.label,
   });
@@ -373,7 +466,7 @@ class _LegendItem extends StatelessWidget {
         const SizedBox(width: 4),
         Text(
           label,
-          style: const TextStyle(fontSize: 11),
+          style: const TextStyle(fontSize: 12),
         ),
       ],
     );
