@@ -1,11 +1,9 @@
 // config/db.js
 import pkg from "pg";
 import dotenv from "dotenv";
-<<<<<<< HEAD
-=======
 
 dotenv.config();
->>>>>>> e8496efe4f73585abf12bf26b6f29dfc9d3b8b99
+
 
 const { Pool } = pkg;
 
