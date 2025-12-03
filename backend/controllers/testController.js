@@ -1,5 +1,5 @@
+// controllers/testController.js
 import pool from "../config/db.js";
-
 
 export const testDatabase = async (req, res) => {
   try {
