@@ -3,25 +3,25 @@ import pkg from "pg";
 import dotenv from "dotenv";
 
 dotenv.config();
-
 const { Pool } = pkg;
 
 const pool = new Pool({
-  user: process.env.PGUSER,
-  host: process.env.PGHOST,
-  database: process.env.PGDATABASE,
-  password: process.env.PGPASSWORD,
-  port: process.env.PGPORT,
+  user: process.env.DB_USER,
+  host: process.env.DB_HOST,
+  database: process.env.DB_NAME,
+  password: process.env.DB_PASSWORD,
+  port: process.env.DB_PORT,
 });
 
+// Test connection
 pool
   .connect()
   .then((client) => {
-    console.log("✅ Connected to PostgreSQL + PostGIS successfully!");
+    console.log("✅ Connected to PostgreSQL successfully!");
     client.release();
   })
   .catch((err) => {
-    console.error("❌ Database connection error:", err.message);
+    console.error("❌ PostgreSQL connection error:", err.message);
   });
 
 export default pool;
