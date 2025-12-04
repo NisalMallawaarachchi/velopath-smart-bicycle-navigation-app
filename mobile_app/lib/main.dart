@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'screens/dashboard_screen.dart';
+import 'screens/poi_screen.dart';
+import 'screens/poi_map_screen.dart';
+import 'package:latlong2/latlong.dart';
+import 'screens/all_pois_map_screen.dart';
 import 'package:provider/provider.dart';
 import 'modules/routing_engine/providers/routing_engine_provider.dart';
 import 'routes/app_routes.dart';
@@ -12,17 +17,26 @@ class VeloPathApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => RoutingEngineProvider()),
-      ],
-      child: MaterialApp(
-        debugShowCheckedModeBanner: false,
-        title: 'VeloPath Smart Bicycle App',
-        theme: ThemeData(primarySwatch: Colors.teal),
-        initialRoute: AppRoutes.routingEngineTest,
-        routes: AppRoutes.routes,
-      ),
+
+return MultiProvider(
+  providers: [
+    ChangeNotifierProvider(create: (_) => RoutingEngineProvider()),
+  ],
+  child: MaterialApp(
+    debugShowCheckedModeBanner: false,
+    title: 'VeloPath Smart Bicycle App',
+    theme: ThemeData(
+      colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+      useMaterial3: true,
+    ),
+    home: const DashboardScreen(),
+    routes: {
+      '/pois': (context) => const PoiScreen(),
+      '/all-pois-map': (context) => const AllPOIsMapScreen(),
+      ...AppRoutes.routes, // Keep existing app routes if needed
+    },
+  ),
+
     );
   }
 }
