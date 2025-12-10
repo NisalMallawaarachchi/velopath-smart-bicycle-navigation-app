@@ -136,7 +136,7 @@ class _POIMapScreenState extends State<POIMapScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(poiName),
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color.fromARGB(255, 18, 68, 82),
       ),
 
       body: FlutterMap(
@@ -159,7 +159,7 @@ class _POIMapScreenState extends State<POIMapScreen> {
               Polyline(
                 points: routePoints,
                 strokeWidth: 4,
-                color: Colors.deepPurple,
+                color: const Color.fromARGB(255, 30, 94, 108),
               ),
             ],
           ),
@@ -196,10 +196,10 @@ class _POIMapScreenState extends State<POIMapScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                /// 🟣 VIEW DETAILS BUTTON
+                
                 ElevatedButton(
   style: ElevatedButton.styleFrom(
-    backgroundColor: Colors.deepPurple,
+    backgroundColor: const Color.fromARGB(255, 35, 111, 122),
     foregroundColor: Colors.white, // ⬅ WHITE TEXT
   ),
   onPressed: () {
@@ -213,7 +213,7 @@ class _POIMapScreenState extends State<POIMapScreen> {
   child: const Text("View Details"),
 ),
 
-                /// 📍 MY LOCATION BUTTON
+                
                 ElevatedButton.icon(
                   onPressed: () => _mapController.move(userLatLng, 15),
                   icon: const Icon(Icons.my_location),

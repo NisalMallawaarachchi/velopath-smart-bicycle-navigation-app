@@ -68,7 +68,7 @@ class POIDetailsScreen extends StatelessWidget {
                   /// SUBMIT BUTTON
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.deepPurple,
+                      backgroundColor: const Color.fromARGB(255, 35, 126, 196),
                       padding: const EdgeInsets.symmetric(
                           vertical: 14, horizontal: 40),
                     ),
@@ -107,7 +107,7 @@ class POIDetailsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(name),
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color.fromARGB(255, 19, 85, 151),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -146,7 +146,7 @@ class POIDetailsScreen extends StatelessWidget {
             Center(
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple,
+                  backgroundColor: const Color.fromARGB(255, 9, 71, 98),
                   padding:
                       const EdgeInsets.symmetric(vertical: 14, horizontal: 40),
                 ),

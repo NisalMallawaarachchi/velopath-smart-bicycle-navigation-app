@@ -194,12 +194,12 @@ class _PoiScreenState extends State<PoiScreen> {
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color.fromARGB(255, 35, 99, 179),
         title: const Text("Places to visit", style: TextStyle(color: Colors.white)),
         centerTitle: true,
       ),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color.fromARGB(255, 18, 96, 145),
         child: const Icon(Icons.add_location_alt),
         onPressed: () async {
           final added = await Navigator.push(
@@ -210,7 +210,7 @@ class _PoiScreenState extends State<PoiScreen> {
         },
       ),
       body: isLoading
-          ? const Center(child: CircularProgressIndicator(color: Colors.deepPurple))
+          ? const Center(child: CircularProgressIndicator(color: Color.fromARGB(255, 21, 98, 153)))
           : Column(
               children: [
                 Padding(
@@ -221,7 +221,8 @@ class _PoiScreenState extends State<PoiScreen> {
                         child: DropdownButtonFormField<String>(
                           value: selectedDistrict,
                           decoration: const InputDecoration(labelText: "Select District"),
-                          items: ["All", "Colombo", "Gampaha", "Kalutara", "Galle", "Other"]
+                          items: ["All","Colombo", "Gampaha", "Kalutara", "Kandy", "Matale", "Nuwara Eliya", "Galle", "Matara", "Hambantota", "Jaffna", "Kilinochchi", "Mannar", "Vavuniya", "Mullaitivu", "Batticaloa", "Ampara", "Trincomalee", "Kurunegala", "Puttalam", "Anuradhapura", "Polonnaruwa", "Badulla", "Monaragala", "Ratnapura", "Kegalle"]
+
                               .map((d) => DropdownMenuItem(value: d, child: Text(d)))
                               .toList(),
                           onChanged: (val) {

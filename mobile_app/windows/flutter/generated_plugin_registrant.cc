@@ -18,4 +18,3 @@ void RegisterPlugins(flutter::PluginRegistry* registry) {
   ObjectboxFlutterLibsPluginRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("ObjectboxFlutterLibsPlugin"));
 }
-

@@ -143,7 +143,7 @@ class _AllPOIsMapScreenState extends State<AllPOIsMapScreen> {
         point: LatLng(widget.startPoint['lat'], widget.startPoint['lon']),
         width: 80,
         height: 80,
-        child: const Icon(Icons.flag, color: Colors.green, size: 36),
+        child: const Icon(Icons.flag, color: Color.fromARGB(255, 37, 102, 111), size: 36),
       ));
     }
 
@@ -173,7 +173,7 @@ class _AllPOIsMapScreenState extends State<AllPOIsMapScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Nearby POIs Map'),
-        backgroundColor: Colors.green,
+        backgroundColor: const Color.fromARGB(255, 56, 161, 169),
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -224,7 +224,7 @@ class _AllPOIsMapScreenState extends State<AllPOIsMapScreen> {
         children: [
           FloatingActionButton(
             heroTag: "add_poi",
-            backgroundColor: Colors.green,
+            backgroundColor: const Color.fromARGB(255, 37, 97, 92),
             onPressed: () async {
               final added = await Navigator.push(
                 context,
