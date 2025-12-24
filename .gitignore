@@ -86,3 +86,6 @@ coverage/
 *.iml
 *.ipr
 *.iws
+
+backend/osm_data/
+backend/osm_data/

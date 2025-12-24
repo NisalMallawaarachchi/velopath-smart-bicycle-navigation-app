@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:mobile_app/modules/routing_engine/screens/routing_engine_test_screen.dart';
+
+import 'package:mobile_app/modules/routing_engine/screens/map_screen.dart';
+
 import 'package:mobile_app/screens/auth/login_screen.dart';
 import 'package:mobile_app/screens/dashboard_screen.dart';
 
@@ -47,17 +49,20 @@ class AppDrawer extends StatelessWidget {
 
           // MAP → Routing Engine Test
           ListTile(
-            leading: const Icon(Icons.location_on),
-            title: const Text("Map"),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const RoutingEngineTestScreen(),
-                ),
-              );
-            },
-          ),
+
+  leading: const Icon(Icons.location_on),
+  title: const Text("Map"),
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MapScreen(), 
+      ),
+    );
+  },
+),
+
+
 
           // SETTINGS → null
           const ListTile(
