@@ -1,0 +1,90 @@
+# =========================
+# 🌐 Global settings
+# =========================
+# OS generated files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+
+# Logs and temp files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.pid
+*.seed
+*.pid.lock
+.tmp/
+temp/
+.cache/
+coverage/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# =========================
+# 📱 Flutter (mobile_app)
+# =========================
+/mobile_app/.dart_tool/
+/mobile_app/.flutter-plugins
+/mobile_app/.flutter-plugins-dependencies
+/mobile_app/.packages
+/mobile_app/build/
+/mobile_app/ios/Flutter/Flutter.framework
+/mobile_app/ios/Flutter/Flutter.podspec
+/mobile_app/ios/Flutter/Generated.xcconfig
+/mobile_app/ios/ServiceDefinitions.json
+/mobile_app/ios/Pods/
+/mobile_app/ios/.symlinks/
+/mobile_app/ios/Runner.xcworkspace/
+/mobile_app/android/.gradle/
+/mobile_app/android/local.properties
+/mobile_app/android/app/key.properties
+/mobile_app/pubspec.lock
+
+# =========================
+# ⚙️ Node.js (backend)
+# =========================
+/backend/node_modules/
+/backend/dist/
+/backend/build/
+/backend/.env
+/backend/.DS_Store
+/backend/npm-debug.log
+/backend/yarn.lock
+/backend/package-lock.json
+/backend/.eslintcache
+
+# =========================
+# 🗃️ Database
+# =========================
+/database/*.bak
+/database/*.log
+/database/*.sql~
+/database/.pgdata/
+/database/data/
+/database/dumps/
+
+# =========================
+# 🧪 Testing
+# =========================
+/coverage/
+/test-results/
+
+# =========================
+# 🧠 Misc
+# =========================
+/*.iml
+*.iml
+*.ipr
+*.iws
+backend/osm_data/
+backend/osm_data/
