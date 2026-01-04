@@ -1,24 +1,19 @@
-const pool = require('../config/database');
+// src/services/DecayService.js
+import pool from "../config/db.js";
 
-class DecayService {
+export default class DecayService {
   async runDecay() {
     const client = await pool.connect();
-    
+
     try {
       console.log('[DecayService] Starting decay run...');
 
-      // 1. Enable accelerated decay for old hazards
       await this.checkAcceleratedDecay(client);
-
-      // 2. Apply decay formula
       const updated = await this.applyDecay(client);
-
-      // 3. Delete expired hazards
       const deleted = await this.cleanupExpired(client);
 
       console.log(`[DecayService] Updated ${updated} hazards, deleted ${deleted} expired hazards`);
 
-      // Log the run
       await client.query(`
         INSERT INTO processing_log (event_type, details)
         VALUES ('decay_run', $1)
@@ -85,5 +80,3 @@ class DecayService {
     return result.rowCount;
   }
 }
-
-module.exports = DecayService;

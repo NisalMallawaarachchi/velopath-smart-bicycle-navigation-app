@@ -1,7 +1,8 @@
-const pool = require('../config/database');
-const ConfidenceCalculator = require('../utils/ConfidenceCalculator');
+// src/services/DetectionProcessor.js
+import pool from "../config/db.js";
+import ConfidenceCalculator from "../utils/ConfidenceCalculator.js";
 
-class DetectionProcessor {
+export default class DetectionProcessor {
   constructor() {
     this.PROXIMITY_THRESHOLD = 10; // meters
   }
@@ -9,9 +10,8 @@ class DetectionProcessor {
   // Main method: process all unprocessed detections
   async processUnprocessedDetections() {
     const client = await pool.connect();
-    
+
     try {
-      // Get unprocessed detections
       const result = await client.query(`
         SELECT * FROM ml_detections 
         WHERE processed = FALSE 
@@ -37,7 +37,6 @@ class DetectionProcessor {
   // Process a single detection
   async processDetection(detection, client) {
     try {
-      // Find nearby existing hazard
       const nearbyHazard = await this.findNearbyHazard(
         detection.latitude,
         detection.longitude,
@@ -46,16 +45,13 @@ class DetectionProcessor {
       );
 
       if (nearbyHazard) {
-        // Update existing hazard
         await this.updateHazard(nearbyHazard.id, detection, client);
         console.log(`[DetectionProcessor] Updated hazard ${nearbyHazard.id}`);
       } else {
-        // Create new hazard
         const newHazard = await this.createHazard(detection, client);
         console.log(`[DetectionProcessor] Created new hazard ${newHazard.id}`);
       }
 
-      // Mark as processed
       await client.query(
         'UPDATE ml_detections SET processed = TRUE, processed_at = NOW() WHERE id = $1',
         [detection.id]
@@ -67,13 +63,11 @@ class DetectionProcessor {
     }
   }
 
-  // Find hazard within 10m radius
+  // Find hazard within proximity
   async findNearbyHazard(lat, lon, type, client) {
     const result = await client.query(`
       SELECT 
-        id, 
-        confidence_score, 
-        detection_count,
+        id, confidence_score, detection_count,
         ST_Distance(
           location,
           ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography
@@ -93,7 +87,6 @@ class DetectionProcessor {
     return result.rows[0] || null;
   }
 
-  // Update existing hazard with new detection
   async updateHazard(hazardId, detection, client) {
     const result = await client.query(`
       UPDATE hazards
@@ -109,7 +102,6 @@ class DetectionProcessor {
       RETURNING *
     `, [ConfidenceCalculator.SCORE_CHANGES.ML_DETECTION, hazardId]);
 
-    // Log the update
     await client.query(`
       INSERT INTO processing_log (event_type, hazard_id, details)
       VALUES ('hazard_updated', $1, $2)
@@ -125,15 +117,10 @@ class DetectionProcessor {
     return result.rows[0];
   }
 
-  // Create new hazard
   async createHazard(detection, client) {
     const result = await client.query(`
       INSERT INTO hazards (
-        location, 
-        hazard_type, 
-        confidence_score, 
-        detection_count,
-        last_updated
+        location, hazard_type, confidence_score, detection_count, last_updated
       ) VALUES (
         ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography,
         $3,
@@ -149,7 +136,6 @@ class DetectionProcessor {
       ConfidenceCalculator.SCORE_CHANGES.ML_DETECTION
     ]);
 
-    // Log creation
     await client.query(`
       INSERT INTO processing_log (event_type, hazard_id, details)
       VALUES ('hazard_created', $1, $2)
@@ -165,5 +151,3 @@ class DetectionProcessor {
     return result.rows[0];
   }
 }
-
-module.exports = DetectionProcessor;
