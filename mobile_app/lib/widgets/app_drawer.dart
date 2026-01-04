@@ -4,6 +4,7 @@ import 'package:mobile_app/modules/routing_engine/screens/map_screen.dart';
 
 import 'package:mobile_app/screens/auth/login_screen.dart';
 import 'package:mobile_app/screens/dashboard_screen.dart';
+import 'package:mobile_app/screens/view_poi_screen.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
@@ -40,28 +41,39 @@ class AppDrawer extends StatelessWidget {
             },
           ),
 
+          
           // PROFILE → null (no screen yet)
           const ListTile(
             leading: Icon(Icons.person),
             title: Text("Profile"),
-            onTap: null, // no screen yet
+            onTap: null,
           ),
 
           // MAP → Routing Engine Test
           ListTile(
-
-  leading: const Icon(Icons.location_on),
-  title: const Text("Map"),
-  onTap: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => MapScreen(), 
-      ),
-    );
-  },
-),
-
+            leading: const Icon(Icons.location_on),
+            title: const Text("Map"),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const RoutingEngineTestScreen(),
+                ),
+              );
+            },
+          ),
+        
+        // POIs 
+          ListTile(
+            leading: const Icon(Icons.emoji_nature),
+            title: const Text("Places"),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const POIsScreen()),
+              );
+            },
+          ),
 
 
           // SETTINGS → null
@@ -71,6 +83,7 @@ class AppDrawer extends StatelessWidget {
             onTap: null,
           ),
 
+          // LOGOUT
           ListTile(
             leading: const Icon(Icons.logout),
             title: const Text("Log out"),

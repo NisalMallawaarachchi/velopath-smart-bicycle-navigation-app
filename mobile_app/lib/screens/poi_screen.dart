@@ -1,4 +1,3 @@
-// lib/screens/poi_screen.dart
 import 'package:flutter/material.dart';
 import 'package:mobile_app/screens/poi_map_screen.dart';
 import 'package:mobile_app/screens/add_poi_screen.dart';
@@ -22,8 +21,8 @@ class _PoiScreenState extends State<PoiScreen> {
   String selectedDistrict = "All";
   String searchQuery = "";
 
-  LatLng? myLocation; // User's location
-  final double filterDistanceKm = 10.0; // 10 km radius
+  LatLng? myLocation; 
+  final double filterDistanceKm = 10.0; 
 
   final Distance distance = const Distance();
 
@@ -46,7 +45,7 @@ class _PoiScreenState extends State<PoiScreen> {
       if (response.statusCode == 200) {
         pois = json.decode(response.body);
 
-        // Assign "Other" district to OSM POIs if district is null
+      
         for (var poi in pois) {
           if (poi['district'] == null) {
             poi['district'] = "Other";
@@ -194,7 +193,7 @@ class _PoiScreenState extends State<PoiScreen> {
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        backgroundColor: const Color.fromARGB(255, 35, 99, 179),
+        backgroundColor: const Color.fromARGB(255, 30, 128, 176),
         title: const Text("Places to visit", style: TextStyle(color: Colors.white)),
         centerTitle: true,
       ),

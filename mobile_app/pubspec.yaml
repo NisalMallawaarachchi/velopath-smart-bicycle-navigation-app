@@ -27,6 +27,9 @@ dependencies:
   geolocator: ^10.0.0
   image_picker: ^1.0.7
   http_parser: ^4.0.2
+  provider: ^6.0.5
+  device_info_plus: ^10.1.0
+  
 
   # Voice
   flutter_tts: ^3.8.0
@@ -42,3 +45,4 @@ flutter:
 
   assets:
     - assets/logo.png
+    - assets/bicycle.gif
