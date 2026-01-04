@@ -2,27 +2,48 @@ import pool from "../config/db.js";
 
 export const addPOI = async (req, res) => {
   try {
-    const { name, amenity, description, lat, lon, district } = req.body;
+    const {
+      name,
+      amenity,
+      description,
+      lat,
+      lon,
+      district,
+      deviceId
+    } = req.body;
 
-    if (!name || !amenity || !lat || !lon) {
+    if (!name || !amenity || !lat || !lon || !deviceId) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
     const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
 
-    const result = await pool.query(
-      `INSERT INTO custom_pois (name, amenity, lat, lon, district, description, image_url)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING *`,
-      [name, amenity, lat, lon, district, description, imageUrl]
+    // Insert POI
+    await pool.query(
+      `INSERT INTO custom_pois
+       (name, amenity, lat, lon, district, description, image_url, device_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [name, amenity, lat, lon, district, description, imageUrl, deviceId]
     );
 
-    res.status(201).json(result.rows[0]);
+    
+    await pool.query(
+      `
+      INSERT INTO device_loyalty (device_id, loyalty_points)
+      VALUES ($1, 5)
+      ON CONFLICT (device_id)
+      DO UPDATE SET loyalty_points = device_loyalty.loyalty_points + 5
+      `,
+      [deviceId]
+    );
+
+    res.status(201).json({ message: "POI added & loyalty updated" });
   } catch (err) {
     console.error("Error adding POI:", err.message);
     res.status(500).json({ error: "Server error" });
   }
 };
+
 
 export const getPOIs = async (req, res) => {
   try {
@@ -67,3 +88,58 @@ WHERE p.name IS NOT NULL
     res.status(500).json({ error: "Server error" });
   }
 };
+
+export const votePOI = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { percentage, deviceId } = req.body;
+
+    if (!deviceId) return res.status(400).json({ error: "Device ID is required" });
+    if (percentage < 0 || percentage > 100) return res.status(400).json({ error: "Invalid vote percentage" });
+
+    // Get current POI info
+    const poiResult = await pool.query(
+      `SELECT score, vote_count, voted_devices FROM custom_pois WHERE id = $1`,
+      [id]
+    );
+
+    if (poiResult.rows.length === 0) {
+      return res.status(404).json({ error: "POI not found" });
+    }
+
+    const { score: currentScore, vote_count: currentCount, voted_devices } = poiResult.rows[0];
+
+    // Check if this device has already voted
+    const devices = voted_devices ? voted_devices.split(",") : [];
+    if (devices.includes(deviceId)) {
+      return res.status(400).json({ error: "You have already voted for this POI" });
+    }
+
+    // Calculate new average
+    const newCount = currentCount + 1;
+    const newScore = ((currentScore * currentCount) + percentage) / newCount;
+
+    // Add device ID to voted_devices
+    devices.push(deviceId);
+    const newDevices = devices.join(",");
+
+    // Update POI
+    await pool.query(
+      `UPDATE custom_pois 
+       SET score = $1, vote_count = $2, voted_devices = $3
+       WHERE id = $4`,
+      [newScore, newCount, newDevices, id]
+    );
+
+    res.json({
+      message: "Vote submitted successfully",
+      score: newScore,
+      voteCount: newCount,
+    });
+
+  } catch (err) {
+    console.error("Vote error:", err.message);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+

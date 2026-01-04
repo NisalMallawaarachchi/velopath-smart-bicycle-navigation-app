@@ -4,6 +4,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
+import '../widgets/device_helper.dart';
+
 
 class AddPOIScreen extends StatefulWidget {
   const AddPOIScreen({super.key});
@@ -22,11 +24,11 @@ class _AddPOIScreenState extends State<AddPOIScreen> {
   double? lat;
   double? lon;
 
-  // Amenity dropdown
+  
   String? selectedAmenity;
   List<String> amenityOptions = ['Waterfall', 'School', 'Park', 'Other'];
 
-  // District dropdown
+  
   String? selectedDistrict;
   List<String> districtOptions = [
     'Colombo',
@@ -59,7 +61,7 @@ class _AddPOIScreenState extends State<AddPOIScreen> {
   @override
   void initState() {
     super.initState();
-    _getCurrentLocation(); // Auto fetch location
+    _getCurrentLocation(); 
   }
 
   // Get current location
@@ -96,51 +98,36 @@ class _AddPOIScreenState extends State<AddPOIScreen> {
   }
 
   // Submit POI
-  Future<void> submitPOI() async {
-    if (!_formKey.currentState!.validate()) return;
+ Future<void> submitPOI() async {
+  final deviceId = await getDeviceId();
 
-    if (lat == null || lon == null) {
-      await _getCurrentLocation();
-      if (lat == null) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content:
-                Text("Cannot add POI. Location is required. Please enable GPS.")));
-        return;
-      }
-    }
+  final uri = Uri.parse("http://10.75.197.44:5001/api/pois");
+  final request = http.MultipartRequest("POST", uri)
+    ..fields["name"] = nameController.text
+    ..fields["amenity"] = selectedAmenity == "Other"
+        ? otherAmenityController.text
+        : selectedAmenity ?? ""
+    ..fields["description"] = descriptionController.text
+    ..fields["lat"] = lat.toString()
+    ..fields["lon"] = lon.toString()
+    ..fields["district"] = selectedDistrict ?? "Unknown"
+    ..fields["deviceId"] = deviceId;
 
-    final uri = Uri.parse("http://10.75.197.44:5001/api/pois");
-    final request = http.MultipartRequest("POST", uri)
-      ..fields["name"] = nameController.text
-      ..fields["amenity"] = selectedAmenity == "Other"
-          ? otherAmenityController.text
-          : selectedAmenity ?? ""
-      ..fields["description"] = descriptionController.text
-      ..fields["lat"] = lat.toString()
-      ..fields["lon"] = lon.toString()
-      ..fields["district"] = selectedDistrict ?? "Unknown";
-
-    if (pickedImage != null) {
-      request.files.add(await http.MultipartFile.fromPath(
-        'image',
-        pickedImage!.path,
-        contentType: MediaType('image', 'jpeg'),
-      ));
-    }
-
-    final response = await request.send();
-
-    if (response.statusCode == 201) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text("POI Added Successfully")));
-      Navigator.pop(context, true);
-    } else {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text("Failed to add POI")));
-    }
+  if (pickedImage != null) {
+    request.files.add(await http.MultipartFile.fromPath(
+      'image',
+      pickedImage!.path,
+    ));
   }
 
-  // Pick image
+  final response = await request.send();
+
+  if (response.statusCode == 201) {
+    Navigator.pop(context, true);
+  }
+}
+
+  
   Future<void> pickImage() async {
     final picker = ImagePicker();
     final file = await picker.pickImage(source: ImageSource.camera);
@@ -208,7 +195,7 @@ class _AddPOIScreenState extends State<AddPOIScreen> {
 
               const SizedBox(height: 20),
 
-              // CAPTURE BUTTON OR IMAGE PREVIEW
+              // CAPTURE BUTTON
               pickedImage == null
                   ? ElevatedButton(
                       onPressed: pickImage,
