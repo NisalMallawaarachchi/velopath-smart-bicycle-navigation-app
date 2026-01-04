@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:mobile_app/modules/routing_engine/screens/routing_engine_test_screen.dart';
+
+import 'package:mobile_app/modules/routing_engine/screens/map_screen.dart';
+
 import 'package:mobile_app/screens/auth/login_screen.dart';
 import 'package:mobile_app/screens/dashboard_screen.dart';
 import 'package:mobile_app/screens/view_poi_screen.dart';
