@@ -1,9 +1,12 @@
 import 'dart:convert';
+import 'dart:io';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 
 class AuthService {
-  static const String baseUrl =
-      "http://192.168.8.191:3000/api/auth";
+  // 🔁 Emulator → 10.0.2.2
+  // 📱 Real device → your PC IP
+  static const String baseUrl = "http://10.0.2.2:5001/api/auth";
 
   // LOGIN
   static Future<String> login({
@@ -28,26 +31,47 @@ class AuthService {
     }
   }
 
-  // REGISTER
+  /// REGISTER
   static Future<void> register({
     required String username,
     required String email,
     required String password,
   }) async {
-    final response = await http.post(
-      Uri.parse("$baseUrl/register"),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode({
-        "username": username,
-        "email": email,
-        "password": password,
-      }),
-    );
+    try {
+      print("Sending request to: $baseUrl/register");
 
-    final data = jsonDecode(response.body);
+      final response = await http
+          .post(
+            Uri.parse("$baseUrl/register"),
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: jsonEncode({
+              "username": username,
+              "email": email,
+              "password": password,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
 
-    if (response.statusCode != 201) {
-      throw Exception(data["message"]);
+      print("Status code: ${response.statusCode}");
+      print("Response body: ${response.body}");
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 201) {
+        return;
+      } else {
+        throw Exception(data["message"] ?? "Registration failed");
+      }
+    } on SocketException {
+      throw Exception("No internet connection or backend unreachable");
+    } on TimeoutException {
+      throw Exception("Request timeout");
+    } on FormatException {
+      throw Exception("Invalid server response");
+    } catch (e) {
+      rethrow;
     }
   }
 }
