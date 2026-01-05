@@ -184,7 +184,7 @@ class PredictionResultScreen extends StatelessWidget {
               label,
               style: TextStyle(
                 fontSize: 12,
-                color: color.shade700,
+                color: color,
               ),
             ),
           ],
