@@ -161,198 +161,185 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
             )
-          : LayoutBuilder(
-              builder: (context, constraints) {
-                return SingleChildScrollView(
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      minHeight: constraints.maxHeight,
+          : Column(
+              children: [
+                // Sensor Status Widget
+                SensorStatusWidget(sensorService: sensorService),
+
+                // Header Card
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Color(0xFF2563EB),
+                        Color(0xFF1D4ED8),
+                      ],
                     ),
-                    child: IntrinsicHeight(
-                      child: Column(
-                        children: [
-                          // Sensor Status Widget
-                          SensorStatusWidget(sensorService: sensorService),
-
-                          // Header Card
-                          Container(
-                            width: double.infinity,
-                            margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  Color(0xFF2563EB),
-                                  Color(0xFF1D4ED8),
-                                ],
-                              ),
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.blue.shade200,
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              children: [
-                                Icon(
-                                  isRecording ? Icons.sensors : Icons.sensors_off,
-                                  size: 48,
-                                  color: Colors.white,
-                                ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  isRecording ? "Recording Active" : "Ready to Record",
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  isRecording 
-                                      ? "$dataPoints data points captured"
-                                      : "Start capturing sensor data",
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.9),
-                                    fontSize: 14,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          // Control Section
-                          Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 16),
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.grey.shade200,
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              children: [
-                                ElevatedButton.icon(
-                                  icon: Icon(
-                                    isRecording ? Icons.stop_circle : Icons.play_circle_fill,
-                                    size: 24,
-                                  ),
-                                  label: Text(
-                                    isRecording ? "STOP RECORDING" : "START RECORDING",
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                  onPressed: () async {
-                                    if (isRecording) {
-                                      sensorService.stopRecording();
-                                      await StorageService.saveSession(
-                                        DateTime.now().toString(),
-                                        sensorService.readings,
-                                      );
-                                      setState(() {
-                                        isRecording = false;
-                                        dataPoints = 0;
-                                      });
-                                    } else {
-                                      // Check if any sensors are available
-                                      final availableSensors = [
-                                        sensorService.hasAccelerometer,
-                                        sensorService.hasGyroscope,
-                                        sensorService.hasMagnetometer,
-                                      ].any((element) => element);
-
-                                      if (!availableSensors) {
-                                        _showNoSensorsDialog();
-                                        return;
-                                      }
-
-                                      await sensorService.startRecording();
-                                      setState(() => isRecording = true);
-                                      
-                                      Timer.periodic(const Duration(milliseconds: 500), (timer) {
-                                        if (!isRecording) {
-                                          timer.cancel();
-                                          return;
-                                        }
-                                        _updateDataCount();
-                                      });
-                                    }
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: isRecording ? Colors.red : Colors.green,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 32,
-                                      vertical: 16,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    elevation: 2,
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                if (isRecording) ...[
-                                  const LinearProgressIndicator(
-                                    backgroundColor: Colors.grey,
-                                    color: Colors.green,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    "Recording in progress...",
-                                    style: TextStyle(
-                                      color: Colors.grey[600],
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-
-                          const SizedBox(height: 16),
-
-                          // Data Visualization Section
-                          Expanded(
-                            child: Container(
-                              margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.grey.shade200,
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: sensorService.readings.isEmpty
-                                  ? _buildEmptyState()
-                                  : _buildChartSection(),
-                            ),
-                          ),
-                        ],
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.blue.shade200,
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
                       ),
-                    ),
+                    ],
                   ),
-                );
-              },
+                  child: Column(
+                    children: [
+                      Icon(
+                        isRecording ? Icons.sensors : Icons.sensors_off,
+                        size: 48,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        isRecording ? "Recording Active" : "Ready to Record",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        isRecording 
+                            ? "$dataPoints data points captured"
+                            : "Start capturing sensor data",
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.9),
+                          fontSize: 14,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Control Section
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.grey.shade200,
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      ElevatedButton.icon(
+                        icon: Icon(
+                          isRecording ? Icons.stop_circle : Icons.play_circle_fill,
+                          size: 24,
+                        ),
+                        label: Text(
+                          isRecording ? "STOP RECORDING" : "START RECORDING",
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 16,
+                          ),
+                        ),
+                        onPressed: () async {
+                          if (isRecording) {
+                            sensorService.stopRecording();
+                            await StorageService.saveSession(
+                              DateTime.now().toString(),
+                              sensorService.readings,
+                            );
+                            setState(() {
+                              isRecording = false;
+                              dataPoints = 0;
+                            });
+                          } else {
+                            // Check if any sensors are available
+                            final availableSensors = [
+                              sensorService.hasAccelerometer,
+                              sensorService.hasGyroscope,
+                              sensorService.hasMagnetometer,
+                            ].any((element) => element);
+
+                            if (!availableSensors) {
+                              _showNoSensorsDialog();
+                              return;
+                            }
+
+                            await sensorService.startRecording();
+                            setState(() => isRecording = true);
+                            
+                            Timer.periodic(const Duration(milliseconds: 500), (timer) {
+                              if (!isRecording) {
+                                timer.cancel();
+                                return;
+                              }
+                              _updateDataCount();
+                            });
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: isRecording ? Colors.red : Colors.green,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 32,
+                            vertical: 16,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 2,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      if (isRecording) ...[
+                        const LinearProgressIndicator(
+                          backgroundColor: Colors.grey,
+                          color: Colors.green,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          "Recording in progress...",
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Data Visualization Section
+                Expanded(
+                  child: Container(
+                    margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.shade200,
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: sensorService.readings.isEmpty
+                        ? _buildEmptyState()
+                        : _buildChartSection(),
+                  ),
+                ),
+              ],
             ),
     );
   }

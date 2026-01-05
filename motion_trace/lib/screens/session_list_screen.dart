@@ -41,11 +41,12 @@ class _SessionListScreenState extends State<SessionListScreen> {
 
   Future<void> _exportCSV(String key) async {
     final readings = await StorageService.getSessionData(key);
-    await CSVExporter.exportToCSV(readings, key);
+    final filePath = await CSVExporter.exportToCSV(readings, key);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("Session $key exported as CSV"),
+          content: Text("CSV saved to: Downloads/MotionTrace/"),
+          duration: const Duration(seconds: 4),
           backgroundColor: Colors.green,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(

@@ -56,10 +56,9 @@ class SensorService {
         hasMagnetometer = false;
       }
 
-      // Test location services
+      // Test location services using safer method
       try {
-        await LocationService.getCurrentPosition().timeout(const Duration(seconds: 5));
-        hasLocation = true;
+        hasLocation = await LocationService.isLocationAvailable().timeout(const Duration(seconds: 5));
       } catch (e) {
         hasLocation = false;
       }
