@@ -3,9 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:motion_trace/services/sensor_service.dart';
 import 'package:motion_trace/services/storage_service.dart';
+import 'package:motion_trace/services/api_service.dart';
 import 'package:motion_trace/widgets/sensor_chart.dart';
 import 'package:motion_trace/widgets/sensor_status_widget.dart';
 import 'package:motion_trace/screens/session_list_screen.dart';
+import 'package:motion_trace/screens/prediction_result_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -45,6 +47,63 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => isLoadingSensors = false);
   }
 
+  Future<void> _runDemoAnalysis() async {
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 20),
+            Text("Analyzing road data..."),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      // Call backend API for demo prediction
+      final result = await ApiService.getDemoPrediction();
+      
+      // Close loading dialog
+      if (mounted) Navigator.pop(context);
+
+      if (result.success) {
+        // Navigate to results screen
+        if (mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => PredictionResultScreen(result: result),
+            ),
+          );
+        }
+      } else {
+        // Show error
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Analysis failed: ${result.error}"),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Error: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -61,6 +120,11 @@ class _HomeScreenState extends State<HomeScreen> {
         elevation: 0,
         centerTitle: true,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.analytics, color: Colors.white),
+            tooltip: "Demo Analyze",
+            onPressed: _runDemoAnalysis,
+          ),
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
             tooltip: "Refresh Sensors",
@@ -263,7 +327,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                           const SizedBox(height: 16),
 
-                          // Data Visualization Section - FIXED with proper constraints
+                          // Data Visualization Section
                           Expanded(
                             child: Container(
                               margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
