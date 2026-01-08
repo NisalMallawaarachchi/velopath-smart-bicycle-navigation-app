@@ -4,10 +4,9 @@ import 'package:motion_trace/models/sensor_reading.dart';
 
 /// Service for communicating with the Velopath backend API
 class ApiService {
-  // TODO: Update this to your backend URL
-  // For local testing with emulator, use 10.0.2.2 instead of localhost
-  // For real device, use your computer's IP address
-  static const String baseUrl = 'http://10.0.2.2:5000';
+  // Backend URL - use your computer's IP address for real device
+  // For emulator use 10.0.2.2, for real device use your computer's WiFi IP
+  static const String baseUrl = 'http://192.168.8.118:5001';
   
   /// Check if the backend ML service is available
   static Future<Map<String, dynamic>> checkHealth() async {
@@ -86,7 +85,43 @@ class ApiService {
       );
     }
   }
+  
+  /// Upload labeled session data for prediction or training
+  /// [mode] - 'predict' to run ML prediction, 'train' to add to training data
+  static Future<UploadResult> uploadSession(
+    List<SensorReading> readings, 
+    String mode,
+  ) async {
+    try {
+      final sensorData = readings.map((r) => r.toJson()).toList();
+      
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/hazard/upload'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'sensorData': sensorData,
+          'mode': mode,
+        }),
+      ).timeout(const Duration(seconds: 60));
+      
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return UploadResult.fromJson(data);
+      } else {
+        return UploadResult(
+          success: false,
+          error: 'Server returned ${response.statusCode}',
+        );
+      }
+    } catch (e) {
+      return UploadResult(
+        success: false,
+        error: e.toString(),
+      );
+    }
+  }
 }
+
 
 /// Result of hazard prediction
 class HazardPredictionResult {
@@ -180,6 +215,62 @@ class HazardSummary {
       hazardLocations: (json['hazard_locations'] as List? ?? [])
           .map((h) => HazardPrediction.fromJson(h))
           .toList(),
+    );
+  }
+}
+
+/// Result of upload operation
+class UploadResult {
+  final bool success;
+  final String? error;
+  final String? mode;
+  final String? message;
+  final UploadStats? stats;
+  final HazardPredictionResult? predictionResult;
+  
+  UploadResult({
+    required this.success,
+    this.error,
+    this.mode,
+    this.message,
+    this.stats,
+    this.predictionResult,
+  });
+  
+  factory UploadResult.fromJson(Map<String, dynamic> json) {
+    return UploadResult(
+      success: json['success'] ?? false,
+      error: json['error'],
+      mode: json['mode'],
+      message: json['message'],
+      stats: json['stats'] != null ? UploadStats.fromJson(json['stats']) : null,
+      predictionResult: json['predictions'] != null 
+          ? HazardPredictionResult.fromJson(json)
+          : null,
+    );
+  }
+}
+
+/// Stats from training upload
+class UploadStats {
+  final int addedReadings;
+  final int totalReadings;
+  final Map<String, int> labelCounts;
+  final bool hasLabels;
+  
+  UploadStats({
+    required this.addedReadings,
+    required this.totalReadings,
+    required this.labelCounts,
+    required this.hasLabels,
+  });
+  
+  factory UploadStats.fromJson(Map<String, dynamic> json) {
+    return UploadStats(
+      addedReadings: json['addedReadings'] ?? 0,
+      totalReadings: json['totalReadings'] ?? 0,
+      labelCounts: Map<String, int>.from(json['labelCounts'] ?? {}),
+      hasLabels: json['hasLabels'] ?? false,
     );
   }
 }

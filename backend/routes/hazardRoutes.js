@@ -6,6 +6,7 @@ import {
   healthCheck,
   predictHazard,
   getDemoPredict,
+  uploadLabeledData,
 } from "../controllers/hazardController.js";
 
 const router = express.Router();
@@ -18,5 +19,8 @@ router.post("/predict", predictHazard);
 
 // Demo prediction using pre-generated data
 router.get("/demo", getDemoPredict);
+
+// Upload labeled data for prediction or training
+router.post("/upload", uploadLabeledData);
 
 export default router;

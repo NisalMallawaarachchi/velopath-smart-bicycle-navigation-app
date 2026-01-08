@@ -4,6 +4,7 @@ class SensorReading {
   final double gyroX, gyroY, gyroZ;
   final double magX, magY, magZ;
   final double latitude, longitude;
+  final String label; // Hazard label: 'smooth', 'pothole', 'bump', 'rough'
 
   SensorReading({
     required this.timestamp,
@@ -18,6 +19,7 @@ class SensorReading {
     required this.magZ,
     required this.latitude,
     required this.longitude,
+    this.label = 'smooth', // Default to smooth road
   });
 
   /// Convert SensorReading to JSON
@@ -34,6 +36,7 @@ class SensorReading {
         'magZ': magZ,
         'latitude': latitude,
         'longitude': longitude,
+        'label': label,
       };
 
   /// Convert JSON back to SensorReading
@@ -51,6 +54,7 @@ class SensorReading {
       magZ: (json['magZ'] ?? 0).toDouble(),
       latitude: (json['latitude'] ?? 0).toDouble(),
       longitude: (json['longitude'] ?? 0).toDouble(),
+      label: json['label'] ?? 'smooth',
     );
   }
 }

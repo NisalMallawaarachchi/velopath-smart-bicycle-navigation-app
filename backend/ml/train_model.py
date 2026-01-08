@@ -43,7 +43,7 @@ def train_model(data_path: str = None, model_path: str = None):
     print(f"Created {X.shape[0]} feature vectors with {X.shape[1]} features each")
     
     # Encode labels
-    label_map = {'smooth': 0, 'pothole': 1, 'bump': 2}
+    label_map = {'smooth': 0, 'pothole': 1, 'bump': 2, 'rough': 3}
     y = np.array([label_map[label] for label in labels])
     
     # Split data
@@ -76,7 +76,7 @@ def train_model(data_path: str = None, model_path: str = None):
     print("\nTest set evaluation:")
     y_pred = model.predict(X_test)
     
-    label_names = ['smooth', 'pothole', 'bump']
+    label_names = ['smooth', 'pothole', 'bump', 'rough']
     print("\nClassification Report:")
     print(classification_report(y_test, y_pred, target_names=label_names))
     
@@ -99,11 +99,11 @@ def train_model(data_path: str = None, model_path: str = None):
     }
     
     joblib.dump(model_data, model_path)
-    print(f"\n✅ Model saved to {model_path}")
+    print(f"\n Model saved to {model_path}")
     
     # Calculate and display accuracy
     accuracy = (y_pred == y_test).mean()
-    print(f"\n📊 Test Accuracy: {accuracy * 100:.2f}%")
+    print(f"\n Test Accuracy: {accuracy * 100:.2f}%")
     
     return model, feature_names
 

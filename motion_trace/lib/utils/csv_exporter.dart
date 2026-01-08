@@ -47,7 +47,8 @@ class CSVExporter {
         'magY',
         'magZ',
         'latitude',
-        'longitude'
+        'longitude',
+        'label'
       ],
       ...readings.map((r) => [
             r.timestamp.toIso8601String(),
@@ -62,6 +63,7 @@ class CSVExporter {
             r.magZ,
             r.latitude,
             r.longitude,
+            r.label,
           ])
     ];
 

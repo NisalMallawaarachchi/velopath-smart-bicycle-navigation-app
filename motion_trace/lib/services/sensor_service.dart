@@ -23,6 +23,58 @@ class SensorService {
   bool hasLocation = false;
   bool sensorsChecked = false;
 
+  // Labeling state
+  String _currentLabel = 'smooth';
+  int _labelReadingsRemaining = 0;
+  bool _isContinuousLabeling = false; // For rough roads - continuous mode
+  static const int defaultLabelDuration = 10; // Number of readings to label
+
+  /// Get the current active label
+  String get currentLabel => _currentLabel;
+  
+  /// Get remaining readings for current label
+  int get labelReadingsRemaining => _labelReadingsRemaining;
+  
+  /// Check if a hazard label is currently active
+  bool get isLabelingActive => _labelReadingsRemaining > 0 || _isContinuousLabeling;
+  
+  /// Check if continuous labeling is active (for rough roads)
+  bool get isContinuousLabeling => _isContinuousLabeling;
+
+  /// Mark the next N readings with a hazard label
+  /// [hazardType] - The type of hazard: 'pothole', 'bump', 'rough'
+  /// [duration] - Number of readings to label (default: 10, ~2 seconds at 200ms intervals)
+  void markHazard(String hazardType, {int duration = defaultLabelDuration}) {
+    _currentLabel = hazardType;
+    _labelReadingsRemaining = duration;
+    _isContinuousLabeling = false; // Disable continuous mode for timed hazards
+  }
+
+  /// Toggle continuous labeling for rough roads
+  /// Returns true if now labeling, false if stopped
+  bool toggleContinuousLabeling(String hazardType) {
+    if (_isContinuousLabeling && _currentLabel == hazardType) {
+      // Stop continuous labeling
+      _isContinuousLabeling = false;
+      _currentLabel = 'smooth';
+      _labelReadingsRemaining = 0;
+      return false;
+    } else {
+      // Start continuous labeling
+      _isContinuousLabeling = true;
+      _currentLabel = hazardType;
+      _labelReadingsRemaining = 0; // Use continuous mode, not countdown
+      return true;
+    }
+  }
+
+  /// Reset label back to smooth
+  void _resetLabel() {
+    _currentLabel = 'smooth';
+    _labelReadingsRemaining = 0;
+    _isContinuousLabeling = false;
+  }
+
   /// Check which sensors are available on the device
   Future<Map<String, bool>> checkSensors() async {
     try {
@@ -134,6 +186,7 @@ class SensorService {
 
     isRecording = true;
     readings.clear();
+    _resetLabel(); // Reset label state when starting new recording
 
     if (hasAccelerometer) {
       _accelSub = accelerometerEvents.listen((event) {
@@ -173,13 +226,25 @@ class SensorService {
       }
       
       if (mounted) {
+        // Capture the current label before adding reading
+        final labelForReading = _currentLabel;
+        
         readings.add(SensorReading(
           timestamp: DateTime.now(),
           accelX: ax, accelY: ay, accelZ: az,
           gyroX: gx, gyroY: gy, gyroZ: gz,
           magX: mx, magY: my, magZ: mz,
           latitude: latitude, longitude: longitude,
+          label: labelForReading,
         ));
+        
+        // Decrement label counter and reset if needed
+        if (_labelReadingsRemaining > 0) {
+          _labelReadingsRemaining--;
+          if (_labelReadingsRemaining == 0) {
+            _currentLabel = 'smooth';
+          }
+        }
       }
     });
   }
@@ -189,6 +254,7 @@ class SensorService {
     _accelSub?.cancel();
     _gyroSub?.cancel();
     _magSub?.cancel();
+    _resetLabel(); // Reset label state when stopping
   }
 
   // Helper method to check if we're in a widget context

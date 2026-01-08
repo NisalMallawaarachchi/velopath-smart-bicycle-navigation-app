@@ -171,3 +171,136 @@ export const getDemoPredict = async (req, res) => {
     });
   }
 };
+
+/**
+ * Upload labeled sensor data for prediction or training
+ * Expects body: { sensorData: [...], mode: 'predict' | 'train' }
+ */
+export const uploadLabeledData = async (req, res) => {
+  try {
+    console.log("📥 Upload request received");
+    console.log("   Mode:", req.body.mode);
+    console.log("   Data points:", req.body.sensorData?.length || 0);
+    
+    const { sensorData, mode } = req.body;
+
+    if (!sensorData || !Array.isArray(sensorData)) {
+      console.log("❌ Invalid request: no sensorData array");
+      return res.status(400).json({
+        success: false,
+        error: "Invalid request: sensorData array required",
+      });
+    }
+
+    if (!mode || !["predict", "train"].includes(mode)) {
+      console.log("❌ Invalid mode:", mode);
+      return res.status(400).json({
+        success: false,
+        error: "Invalid request: mode must be 'predict' or 'train'",
+      });
+    }
+
+    if (sensorData.length < 10) {
+      console.log("❌ Not enough data:", sensorData.length);
+      return res.status(400).json({
+        success: false,
+        error: "Need at least 10 sensor readings",
+      });
+    }
+
+    // Check if data has labels
+    const hasLabels = sensorData.some((r) => r.label && r.label !== "smooth");
+    
+    if (mode === "train") {
+      // TRAIN MODE: Append data to training_data.json
+      const trainingFile = path.join(ML_DIR, "training_data.json");
+      
+      let existingData = [];
+      if (fs.existsSync(trainingFile)) {
+        try {
+          existingData = JSON.parse(fs.readFileSync(trainingFile, "utf-8"));
+        } catch (e) {
+          console.error("Failed to read existing training data:", e);
+        }
+      }
+
+      // Append new data
+      const newData = [...existingData, ...sensorData];
+      fs.writeFileSync(trainingFile, JSON.stringify(newData, null, 2));
+
+      // Count labels
+      const labelCounts = {};
+      for (const reading of sensorData) {
+        const label = reading.label || "smooth";
+        labelCounts[label] = (labelCounts[label] || 0) + 1;
+      }
+
+      return res.json({
+        success: true,
+        mode: "train",
+        message: "Data added to training set",
+        stats: {
+          addedReadings: sensorData.length,
+          totalReadings: newData.length,
+          labelCounts: labelCounts,
+          hasLabels: hasLabels,
+        },
+      });
+    } else {
+      // PREDICT MODE: Run ML prediction
+      const tempFile = path.join(ML_DIR, `temp_${Date.now()}.json`);
+      fs.writeFileSync(tempFile, JSON.stringify(sensorData));
+
+      const pythonProcess = spawn(PYTHON_PATH, ["predict.py", tempFile], {
+        cwd: ML_DIR,
+      });
+
+      let stdout = "";
+      let stderr = "";
+
+      pythonProcess.stdout.on("data", (data) => {
+        stdout += data.toString();
+      });
+
+      pythonProcess.stderr.on("data", (data) => {
+        stderr += data.toString();
+      });
+
+      pythonProcess.on("close", (code) => {
+        // Clean up temp file
+        try {
+          fs.unlinkSync(tempFile);
+        } catch (e) {
+          console.error("Failed to clean up temp file:", e);
+        }
+
+        if (code !== 0) {
+          console.error("Python process error:", stderr);
+          return res.status(500).json({
+            success: false,
+            error: "ML prediction failed",
+            details: stderr,
+          });
+        }
+
+        try {
+          const result = JSON.parse(stdout);
+          result.mode = "predict";
+          result.inputHadLabels = hasLabels;
+          res.json(result);
+        } catch (e) {
+          res.status(500).json({
+            success: false,
+            error: "Failed to parse prediction result",
+            raw: stdout,
+          });
+        }
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+};
