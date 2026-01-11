@@ -38,6 +38,7 @@ VeloPath is a comprehensive bicycle navigation system developed as a research pr
 - **Self-healing hazard maps** through temporal decay algorithms
 - **Offline-first architecture** for areas with poor connectivity
 - **Safe route optimization** avoiding verified hazards
+- **Multi-objective** cost based routing engine
 
 ### Problem Statement
 
@@ -45,7 +46,7 @@ Tourist cyclists in rural Sri Lanka encounter unreported road hazards (potholes,
 
 ### Solution
 
-A three-component intelligent system that:
+This intelligent system that:
 1. **Detects** hazards automatically using ML-based sensor analysis (Component 1)
 2. **Verifies** hazards through community consensus and confidence scoring (Component 2)
 3. **Navigates** cyclists via safe, optimized routes (Component 3)
@@ -60,7 +61,7 @@ A three-component intelligent system that:
 - Offline data collection with background synchronization
 - GPS-tagged hazard reporting
 
-### ✅ Hazard Verification (Component 2) - **Primary Focus**
+### ✅ Hazard Verification (Component 2) 
 - **Proximity-based duplicate detection** (10-meter radius using Haversine distance)
 - **Dynamic confidence scoring** with community-based verification
 - **Exponential decay algorithm** for temporal relevance
@@ -68,12 +69,21 @@ A three-component intelligent system that:
 - **User reputation system** for quality assurance
 - **RESTful API** for seamless integration
 
-### 🗺️ Navigation & Routing (Component 3)
+### 🗺️ Multi-Objective Route Generation Engine (Component 3)
+- Real-time GPS tracking
+- Route polyline rendering
 - Safe route calculation avoiding verified hazards
 - Real-time hazard alerts (approaching & passed notifications)
 - Interactive map with hazard visualization
 - Points of Interest (POI) integration
 - Turn-by-turn navigation
+- Voice navigation using Flutter TTS
+- Arrival detection
+- Off-route detection with automatic re-routing
+- Optimized rendering using Selector-based rebuilds
+
+### 🗺️ POI Gamification (Component 4)
+
 
 ### 📱 Mobile Application
 - Cross-platform (Android & iOS) using Flutter
@@ -81,6 +91,13 @@ A three-component intelligent system that:
 - Offline map caching
 - User profile and statistics
 - Community leaderboard
+- Start & destination search (Geoapify)
+- Route profiles:
+  - Shortest
+  - Safest
+  - Scenic
+  - Balanced
+- 
 
 ---
 
@@ -1110,5 +1127,6 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 | Component | Responsibility | Developer | ID |
 |-----------|---------------|-----------|-----|
-| **Component 1** | ML-based Hazard Detection | [Name] | IT22XXXXX |
-| **Component 2** | Hazard Verification System | Nisal
+| **Component 1** | ML-based Hazard Detection | Gayasri | IT22XXXXX |
+| **Component 2** | Hazard Verification System | Nisal | IT22899538|
+| **Component 3** | Multi-Objective Route Generation Engine | Shakya | IT22893352 |

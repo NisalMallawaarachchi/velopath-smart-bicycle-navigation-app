@@ -34,7 +34,7 @@ class ColoredSegment {
 }
 
 class RoutingEngineProvider extends ChangeNotifier {
-  static const _backendBaseUrl = "http://192.168.8.176:5001";
+  static const _backendBaseUrl = "http://172.28.1.3:5001";
   static const _geoapifyKey = "32bb4486a6864bbbb20904ff39d832ca";
 
   final FlutterTts _tts = FlutterTts();
