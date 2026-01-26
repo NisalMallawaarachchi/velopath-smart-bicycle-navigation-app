@@ -75,24 +75,24 @@ const detectionProcessor = new DetectionProcessor();
 const decayService = new DecayService();
 
 // Cron job: Process ML detections every 30 seconds
-cron.schedule("*/30 * * * * *", async () => {
-  try {
-    await detectionProcessor.processUnprocessedDetections();
-    console.log("[CRON] Detection processor run completed");
-  } catch (error) {
-    console.error("[CRON] Detection processor error:", error);
-  }
-});
+// cron.schedule("*/30 * * * * *", async () => {
+//   try {
+//     await detectionProcessor.processUnprocessedDetections();
+//     console.log("[CRON] Detection processor run completed");
+//   } catch (error) {
+//     console.error("[CRON] Detection processor error:", error);
+//   }
+// });
 
-// Cron job: Run decay every 6 hours
-cron.schedule("0 */6 * * *", async () => {
-  try {
-    await decayService.runDecay();
-    console.log("[CRON] Decay service run completed");
-  } catch (error) {
-    console.error("[CRON] Decay service error:", error);
-  }
-});
+// // Cron job: Run decay every 6 hours
+// cron.schedule("0 */6 * * *", async () => {
+//   try {
+//     await decayService.runDecay();
+//     console.log("[CRON] Decay service run completed");
+//   } catch (error) {
+//     console.error("[CRON] Decay service error:", error);
+//   }
+// });
 
 // Manual triggers for testing
 app.post("/api/admin/process-detections", async (req, res) => {
