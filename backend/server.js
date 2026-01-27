@@ -74,7 +74,9 @@ app.get("/api/stats", async (req, res) => {
 const detectionProcessor = new DetectionProcessor();
 const decayService = new DecayService();
 
+
 //Cron job: Process ML detections every 30 seconds
+
 cron.schedule("*/30 * * * * *", async () => {
  try {
    await detectionProcessor.processUnprocessedDetections();
