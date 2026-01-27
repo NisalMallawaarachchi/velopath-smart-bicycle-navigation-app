@@ -14,7 +14,7 @@ class POIDetailsScreen extends StatelessWidget {
       final deviceId = await getDeviceId();
 
       final response = await http.post(
-        Uri.parse("http://10.75.197.45:5001/api/pois/${poi['id']}/vote"),
+        Uri.parse("http://10.75.197.44:5001/api/pois/${poi['id']}/vote"),
         headers: {"Content-Type": "application/json"},
         body: json.encode({"percentage": percentage, "deviceId": deviceId}),
       );
@@ -131,7 +131,7 @@ class POIDetailsScreen extends StatelessWidget {
               ClipRRect(
                 borderRadius: BorderRadius.circular(10),
                 child: Image.network(
-                  "http://10.75.197.45:5001$imageUrl",
+                  "http://10.75.197.44:5001$imageUrl",
                   height: 200,
                   width: double.infinity,
                   fit: BoxFit.cover,

@@ -100,7 +100,7 @@ class _AddPOIScreenState extends State<AddPOIScreen> {
  Future<void> submitPOI() async {
   final deviceId = await getDeviceId();
 
-  final uri = Uri.parse("http://10.75.197.45:5001/api/pois");
+  final uri = Uri.parse("http://10.75.197.44:5001/api/pois");
   final request = http.MultipartRequest("POST", uri)
     ..fields["name"] = nameController.text
     ..fields["amenity"] = selectedAmenity == "Other"

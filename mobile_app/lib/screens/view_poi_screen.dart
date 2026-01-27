@@ -4,7 +4,6 @@ import 'dart:convert';
 import '../widgets/device_helper.dart';
 
 
-
 class POIsScreen extends StatefulWidget {
   final String title;
   const POIsScreen({super.key, this.title = "Places to View"});
@@ -28,7 +27,7 @@ class _POIsScreenState extends State<POIsScreen> {
       final deviceId = await getDeviceId();
 
       final response = await http.get(
-        Uri.parse("http://10.75.197.45:5001/api/dashboard/$deviceId"),
+        Uri.parse("http://10.75.197.44:5001/api/dashboard/$deviceId"),
       );
 
       if (response.statusCode == 200) {

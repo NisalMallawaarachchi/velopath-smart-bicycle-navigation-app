@@ -41,7 +41,7 @@ class _PoiScreenState extends State<PoiScreen> {
   }
 
   Future<void> fetchPOIs() async {
-    const url = 'http://10.75.197.45:5001/api/pois';
+    const url = 'http://10.75.197.44:5001/api/pois';
     try {
       final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {

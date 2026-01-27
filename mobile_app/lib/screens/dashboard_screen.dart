@@ -30,7 +30,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final deviceId = await getDeviceId();
 
     final res = await http.get(
-      Uri.parse("http://10.75.197.45:5001/api/dashboard/$deviceId"),
+      Uri.parse("http://10.75.197.44:5001/api/dashboard/$deviceId"),
     );
 
     if (res.statusCode == 200) {

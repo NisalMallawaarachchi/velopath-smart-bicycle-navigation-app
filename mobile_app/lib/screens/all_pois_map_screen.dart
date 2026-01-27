@@ -68,7 +68,7 @@ class _AllPOIsMapScreenState extends State<AllPOIsMapScreen> {
 
   Future<void> fetchPOIs() async {
     try {
-      final response = await http.get(Uri.parse('http://10.75.197.45:5001/api/pois'));
+      final response = await http.get(Uri.parse('http://10.75.197.44:5001/api/pois'));
       if (response.statusCode == 200) {
         setState(() {
           pois = json.decode(response.body);
