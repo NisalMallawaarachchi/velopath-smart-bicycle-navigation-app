@@ -13,8 +13,8 @@ import routingRoutes from "./routes/routingRoutes.js"; // for /api/routing/gener
 import pgRoutingRoutes from "./routes/routing.js"; // for /api/routing/route
 
 // Services
-import DetectionProcessor from "./services/detectionProcessor.js";
-import DecayService from "./services/decayService.js";//
+import DetectionProcessor from "./services/DetectionProcessor.js";
+import DecayService from "./services/decayService.js";
 
 // Database
 import pool from "./config/db.js";
