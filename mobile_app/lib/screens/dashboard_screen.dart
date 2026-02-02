@@ -30,7 +30,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final deviceId = await getDeviceId();
 
     final res = await http.get(
-      Uri.parse("http://10.75.197.44:5001/api/dashboard/$deviceId"),
+      Uri.parse("http://192.168.8.191:5001/api/dashboard/$deviceId"),
     );
 
     if (res.statusCode == 200) {
@@ -202,6 +202,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: Column(
                 children: [
                   const SizedBox(height: 12),
+                  
+                  // Existing button
                   ElevatedButton.icon(
                     onPressed: () => Navigator.pushNamed(context, AppRoutes.routingEngineTest),
                     icon: const Icon(Icons.route),
@@ -209,6 +211,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     style: ElevatedButton.styleFrom(
                       minimumSize: const Size(double.infinity, 50),
                       backgroundColor: const Color(0xFF184652),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 12),
+                  
+                  // ✅ NEW: API Test Button
+                  ElevatedButton.icon(
+                    onPressed: () => Navigator.pushNamed(context, '/api-test'),
+                    icon: const Icon(Icons.api),
+                    label: const Text("API Test - Hazard Verification"),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 50),
+                      backgroundColor: Colors.deepPurple,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
@@ -233,6 +252,4 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
-
-
 }

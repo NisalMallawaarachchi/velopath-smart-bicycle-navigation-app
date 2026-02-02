@@ -12,6 +12,7 @@ import 'routes/app_routes.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/signup_screen.dart';
 
+import 'pages/api_test_page.dart';
 
 void main() {
   runApp(const VeloPathApp());
@@ -42,6 +43,9 @@ return MultiProvider(
       '/pois': (context) => const PoiScreen(),
       '/all-pois-map': (context) => const AllPOIsMapScreen(),
        '/add-poi': (context) => const AddPOIScreen(),
+
+      '/api-test': (context) => ApiTestPage(),
+
       ...AppRoutes.routes, // Keep existing app routes if needed
     },
   ),
