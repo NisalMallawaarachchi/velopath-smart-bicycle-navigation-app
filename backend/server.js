@@ -13,7 +13,7 @@ import routingRoutes from "./routes/routingRoutes.js"; // for /api/routing/gener
 import pgRoutingRoutes from "./routes/routing.js"; // for /api/routing/route
 
 // Services
-import DetectionProcessor from "./services/DetectionProcessor.js";
+import DetectionProcessor from "./services/detectionProcessor.js";
 import DecayService from "./services/decayService.js";
 
 // Database
@@ -74,19 +74,17 @@ app.get("/api/stats", async (req, res) => {
 const detectionProcessor = new DetectionProcessor();
 const decayService = new DecayService();
 
-
-//Cron job: Process ML detections every 30 seconds
-
+// Cron job: Process ML detections every 30 seconds
 cron.schedule("*/30 * * * * *", async () => {
- try {
-   await detectionProcessor.processUnprocessedDetections();
-   console.log("[CRON] Detection processor run completed");
+  try {
+    await detectionProcessor.processUnprocessedDetections();
+    console.log("[CRON] Detection processor run completed");
   } catch (error) {
     console.error("[CRON] Detection processor error:", error);
- }
+  }
 });
 
- //Cron job: Run decay every 6 hours
+// Cron job: Run decay every 6 hours
 cron.schedule("0 */6 * * *", async () => {
   try {
     await decayService.runDecay();
