@@ -35,7 +35,7 @@ class _SignupScreenState extends State<SignupScreen> {
     print("Testing backend connection...");
     try {
       final response = await http.get(
-        Uri.parse("http://192.168.1.10:5001"),
+        Uri.parse("http://10.0.2.2:5001"),
       ).timeout(const Duration(seconds: 5));
       print("Backend is reachable. Status: ${response.statusCode}");
     } catch (e) {

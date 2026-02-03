@@ -66,7 +66,7 @@ class AppDrawer extends StatelessWidget {
         // POIs 
           ListTile(
             leading: const Icon(Icons.emoji_nature),
-            title: const Text("Places"),
+            title: const Text("Leaderboard"),
             onTap: () {
               Navigator.push(
                 context,

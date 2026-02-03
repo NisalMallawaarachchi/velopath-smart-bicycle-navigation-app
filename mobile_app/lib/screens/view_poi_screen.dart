@@ -6,7 +6,7 @@ import '../widgets/device_helper.dart';
 
 class POIsScreen extends StatefulWidget {
   final String title;
-  const POIsScreen({super.key, this.title = "Places to View"});
+  const POIsScreen({super.key, this.title = "Leaderboard"});
 
   @override
   State<POIsScreen> createState() => _POIsScreenState();

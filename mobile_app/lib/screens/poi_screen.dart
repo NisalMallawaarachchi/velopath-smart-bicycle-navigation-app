@@ -6,8 +6,6 @@ import 'dart:convert';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
-
-
 class PoiScreen extends StatefulWidget {
   const PoiScreen({super.key});
 
@@ -24,14 +22,13 @@ class _PoiScreenState extends State<PoiScreen> {
   String searchQuery = "";
 
   LatLng? myLocation; 
-  final double filterDistanceKm = 10.0; 
+  final double filterDistanceKm = 5.0; 
 
   final Distance distance = const Distance();
 
   @override
   void initState() {
     super.initState();
-    // Try to get location first then fetch POIs.
     initAll();
   }
 
@@ -47,7 +44,6 @@ class _PoiScreenState extends State<PoiScreen> {
       if (response.statusCode == 200) {
         pois = json.decode(response.body);
 
-      
         for (var poi in pois) {
           if (poi['district'] == null) {
             poi['district'] = "Other";
@@ -168,7 +164,7 @@ class _PoiScreenState extends State<PoiScreen> {
       child: ListTile(
         title: Text(name),
         subtitle: Text("$amenity • $district"),
-        onTap: () {
+        onTap: () async {
           if (myLocation == null) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Please enable "Use My Location" first.')),
@@ -176,7 +172,8 @@ class _PoiScreenState extends State<PoiScreen> {
             return;
           }
 
-          Navigator.push(
+          // Navigate to Map Screen and await updated POI after possible votes
+          final updatedPoi = await Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => POIMapScreen(
@@ -185,6 +182,17 @@ class _PoiScreenState extends State<PoiScreen> {
               ),
             ),
           );
+
+          // Update POI in the list if user voted in details screen
+          if (updatedPoi != null) {
+            setState(() {
+              final index = pois.indexWhere((p) => p['id'] == updatedPoi['id']);
+              if (index != -1) {
+                pois[index] = updatedPoi;
+                applyFilters();
+              }
+            });
+          }
         },
       ),
     );
@@ -223,7 +231,6 @@ class _PoiScreenState extends State<PoiScreen> {
                           value: selectedDistrict,
                           decoration: const InputDecoration(labelText: "Select District"),
                           items: ["All","Colombo", "Gampaha", "Kalutara", "Kandy", "Matale", "Nuwara Eliya", "Galle", "Matara", "Hambantota", "Jaffna", "Kilinochchi", "Mannar", "Vavuniya", "Mullaitivu", "Batticaloa", "Ampara", "Trincomalee", "Kurunegala", "Puttalam", "Anuradhapura", "Polonnaruwa", "Badulla", "Monaragala", "Ratnapura", "Kegalle"]
-
                               .map((d) => DropdownMenuItem(value: d, child: Text(d)))
                               .toList(),
                           onChanged: (val) {
