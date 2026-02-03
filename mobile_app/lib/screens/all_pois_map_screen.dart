@@ -7,6 +7,8 @@ import 'package:latlong2/latlong.dart';
 import 'package:mobile_app/screens/add_poi_screen.dart';
 import 'package:geolocator/geolocator.dart';
 
+
+
 class AllPOIsMapScreen extends StatefulWidget {
   final dynamic startPoint;
   final dynamic endPoint;

@@ -12,6 +12,7 @@ dependencies:
     sdk: flutter
 
   cupertino_icons: ^1.0.8
+  flutter_dotenv: ^5.0.2
 
   # Core app packages
   provider: ^6.0.5

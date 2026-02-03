@@ -4,6 +4,7 @@ import { addPOI, getPOIs, votePOI } from "../controllers/poiController.js";
 import { getDashboard} from "../controllers/dashboardController.js";
 
 
+
 const router = express.Router();
 
 router.post("/pois", upload.single("image"), addPOI);
