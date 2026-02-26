@@ -7,12 +7,14 @@ class POIMapScreen extends StatefulWidget {
   final LatLng startPoint;
   final dynamic selectedPoi;
   final List<dynamic>? otherPois;
+  final Function(int)? onLoyaltyUpdated;
 
   const POIMapScreen({
     super.key,
     required this.startPoint,
     required this.selectedPoi,
     this.otherPois,
+    this.onLoyaltyUpdated,
   });
 
   @override
@@ -91,8 +93,12 @@ class _POIMapScreenState extends State<POIMapScreen> {
     final updatedPoi = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => POIDetailsScreen(poi: selectedPoi),
+        builder: (_) => POIDetailsScreen(poi: selectedPoi,
+        onLoyaltyUpdated: widget.onLoyaltyUpdated,
+        ),
+        
       ),
+      
     );
 
     if (updatedPoi != null) {

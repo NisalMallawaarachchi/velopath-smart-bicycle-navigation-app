@@ -33,7 +33,7 @@ export const addPOI = async (req, res) => {
   }
 };
 
-// Get all POIs (custom + OSM)
+// Get all POIs 
 export const getPOIs = async (req, res) => {
   try {
     const result = await pool.query(`
@@ -79,7 +79,7 @@ export const getPOIs = async (req, res) => {
   }
 };
 
-// Get single POI details (fresh)
+
 export const getPOIDetails = async (req, res) => {
   try {
     const { id } = req.params;
@@ -109,13 +109,14 @@ export const votePOI = async (req, res) => {
     const { id } = req.params;
     const { percentage, deviceId, source, poi } = req.body;
 
-    if (!deviceId) return res.status(400).json({ error: "Device ID is required" });
+    if (!deviceId)
+      return res.status(400).json({ error: "Device ID is required" });
+
     if (percentage < 0 || percentage > 100)
       return res.status(400).json({ error: "Invalid vote percentage" });
 
     let customPoiId = id;
 
-    // If OSM POI, insert into custom_pois
     if (source === "osm") {
       const existing = await pool.query(
         `SELECT id FROM custom_pois WHERE osm_id = $1`,
@@ -136,15 +137,23 @@ export const votePOI = async (req, res) => {
       }
     }
 
-    // Voting logic
+    // ---------- Fetch POI ----------
     const poiResult = await pool.query(
-      `SELECT score, vote_count, voted_devices FROM custom_pois WHERE id = $1`,
+      `SELECT score, vote_count, voted_devices
+       FROM custom_pois
+       WHERE id = $1`,
       [customPoiId]
     );
 
-    if (poiResult.rows.length === 0) return res.status(404).json({ error: "POI not found" });
+    if (poiResult.rows.length === 0)
+      return res.status(404).json({ error: "POI not found" });
 
-    const { score: currentScore, vote_count: currentCount, voted_devices } = poiResult.rows[0];
+    const {
+      score: currentScore,
+      vote_count: currentCount,
+      voted_devices,
+    } = poiResult.rows[0];
+
     const devices = voted_devices ? voted_devices.split(",") : [];
 
     if (devices.includes(deviceId)) {
@@ -156,26 +165,130 @@ export const votePOI = async (req, res) => {
       });
     }
 
+    // ---------- Calculate new score ----------
     const newCount = currentCount + 1;
-    const newScore = ((currentScore * currentCount) + percentage) / newCount;
+    const newScore =
+      ((currentScore * currentCount) + percentage) / newCount;
+
     devices.push(deviceId);
 
+    // ---------- Update POI ----------
     await pool.query(
       `UPDATE custom_pois
-       SET score = $1, vote_count = $2, voted_devices = $3
+       SET score = $1,
+           vote_count = $2,
+           voted_devices = $3
        WHERE id = $4`,
       [newScore, newCount, devices.join(","), customPoiId]
     );
 
+    await pool.query(
+      `INSERT INTO device_loyalty (device_id, loyalty_points)
+       VALUES ($1, 2)
+       ON CONFLICT (device_id)
+       DO UPDATE
+       SET loyalty_points = device_loyalty.loyalty_points + 2`,
+      [deviceId]
+    );
+
+    // ---------- Response ----------
     res.json({
       message: "Vote submitted successfully",
       score: newScore,
       voteCount: newCount,
       alreadyVoted: false,
       customPoiId,
+      rewardPoints: 2,
     });
+
   } catch (err) {
     console.error("Vote error:", err.message);
     res.status(500).json({ error: "Server error" });
   }
 };
+
+// Get all comments for a POI
+export const getComments = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(
+      `SELECT 
+        id, 
+        poi_id, 
+        device_id, 
+        comment, 
+        created_at,
+        updated_at
+      FROM poi_comments 
+      WHERE poi_id = $1 
+      ORDER BY created_at DESC`,
+      [id]
+    );
+
+    res.status(200).json({
+      success: true,
+      comments: result.rows,
+      count: result.rows.length
+    });
+  } catch (err) {
+    console.error("Error fetching comments:", err.message);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch comments",
+      message: err.message
+    });
+  }
+};
+
+// Add a new comment to a POI
+export const addComment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { comment, deviceId } = req.body;
+
+    // Validation
+    if (!comment || !deviceId) {
+      return res.status(400).json({
+        success: false,
+        error: "Comment and deviceId are required"
+      });
+    }
+
+    if (comment.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Comment cannot be empty"
+      });
+    }
+
+    if (comment.length > 1000) {
+      return res.status(400).json({
+        success: false,
+        error: "Comment is too long (max 1000 characters)"
+      });
+    }
+
+    // Insert comment
+    const result = await pool.query(
+      `INSERT INTO poi_comments (poi_id, device_id, comment) 
+       VALUES ($1, $2, $3) 
+       RETURNING id, poi_id, device_id, comment, created_at, updated_at`,
+      [id, deviceId, comment.trim()]
+    );
+
+    res.status(201).json({
+      success: true,
+      message: "Comment added successfully",
+      comment: result.rows[0]
+    });
+  } catch (err) {
+    console.error("Error adding comment:", err.message);
+    res.status(500).json({
+      success: false,
+      error: "Failed to add comment",
+      message: err.message
+    });
+  }
+};
+

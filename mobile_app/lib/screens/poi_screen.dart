@@ -5,9 +5,11 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
+import '../config/api_config.dart';
 
 class PoiScreen extends StatefulWidget {
   const PoiScreen({super.key});
+  
 
   @override
   State<PoiScreen> createState() => _PoiScreenState();
@@ -17,6 +19,7 @@ class _PoiScreenState extends State<PoiScreen> {
   List<dynamic> pois = [];
   List<dynamic> filteredPois = [];
   bool isLoading = true;
+  int loyaltyPoints = 0;
 
   String selectedDistrict = "All";
   String searchQuery = "";
@@ -38,7 +41,7 @@ class _PoiScreenState extends State<PoiScreen> {
   }
 
   Future<void> fetchPOIs() async {
-    const url = 'http://10.75.197.44:5001/api/pois';
+    final url = ApiConfig.pois;
     try {
       final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
@@ -179,9 +182,14 @@ class _PoiScreenState extends State<PoiScreen> {
               builder: (context) => POIMapScreen(
                 startPoint: myLocation!,
                 selectedPoi: poi,
-              ),
-            ),
-          );
+        onLoyaltyUpdated: (points) {
+          setState(() {
+            loyaltyPoints += points; // Update UI immediately
+          });
+        },
+      ),
+    ),
+  );
 
           // Update POI in the list if user voted in details screen
           if (updatedPoi != null) {

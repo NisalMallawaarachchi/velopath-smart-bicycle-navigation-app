@@ -1,6 +1,6 @@
 import express from "express";
 import upload from "../config/multerConfig.js";
-import { addPOI, getPOIs, votePOI } from "../controllers/poiController.js";
+import { addPOI, getPOIs, votePOI,  getComments,addComment} from "../controllers/poiController.js";
 import { getDashboard} from "../controllers/dashboardController.js";
 
 
@@ -13,5 +13,8 @@ router.get("/pois", getPOIs);
 router.get("/dashboard/:deviceId", getDashboard);
 
 router.post("/pois/:id/vote", votePOI);
+
+router.get("/pois/:id/comments", getComments);
+router.post("/pois/:id/comments", addComment);
 
 export default router;

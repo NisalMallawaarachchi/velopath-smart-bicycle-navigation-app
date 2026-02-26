@@ -6,6 +6,8 @@ import '../widgets/bottom_nav.dart';
 import '../widgets/device_helper.dart'; 
 import 'dart:convert'; 
 import 'package:http/http.dart' as http;
+import '../config/api_config.dart';
+
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -38,11 +40,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.dispose();
   }
 
+  Future<void> incrementLoyalty(int points) async {
+  setState(() {
+    loyaltyPoints += points;
+  });
+}
   Future<void> loadDashboard() async {
     final deviceId = await getDeviceId();
 
     final res = await http.get(
-      Uri.parse("http://10.75.197.44:5001/api/dashboard/$deviceId"),
+      Uri.parse(ApiConfig.dashboard(deviceId))
     );
 
     if (res.statusCode == 200) {

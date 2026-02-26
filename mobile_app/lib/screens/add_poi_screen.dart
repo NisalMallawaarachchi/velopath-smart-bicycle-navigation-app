@@ -5,6 +5,9 @@ import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import '../widgets/device_helper.dart';
+import '../config/api_config.dart';
+
+
 
 class AddPOIScreen extends StatefulWidget {
   const AddPOIScreen({super.key});
@@ -100,7 +103,7 @@ class _AddPOIScreenState extends State<AddPOIScreen> {
  Future<void> submitPOI() async {
   final deviceId = await getDeviceId();
 
-  final uri = Uri.parse("http://10.75.197.44:5001/api/pois");
+  final uri = Uri.parse(ApiConfig.pois);
   final request = http.MultipartRequest("POST", uri)
     ..fields["name"] = nameController.text
     ..fields["amenity"] = selectedAmenity == "Other"
