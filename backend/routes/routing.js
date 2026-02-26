@@ -44,7 +44,8 @@ function stitchRouteCoordinates(routeRows) {
 
   for (let i = 0; i < routeRows.length; i++) {
     const g = safeJsonGeom(routeRows[i].geojson);
-    if (!g || !Array.isArray(g.coordinates) || g.coordinates.length < 2) continue;
+    if (!g || !Array.isArray(g.coordinates) || g.coordinates.length < 2)
+      continue;
 
     const edge = g.coordinates;
 
@@ -113,9 +114,9 @@ function simplifyLine(coords, tolerance = 0.00003) {
 /* ================================================== */
 function mergeRouteSegments(routeRows, opts = {}) {
   const {
-    minMergeLengthM = 30,     // merge tiny edges (noise)
-    maxMergeAngleDeg = 10,    // merge if direction change is tiny
-    preferSameName = true,    // merge same named roads
+    minMergeLengthM = 30, // merge tiny edges (noise)
+    maxMergeAngleDeg = 10, // merge if direction change is tiny
+    preferSameName = true, // merge same named roads
   } = opts;
 
   const segments = [];
@@ -136,7 +137,9 @@ function mergeRouteSegments(routeRows, opts = {}) {
   let cur = {
     name: routeRows[0].name || null,
     length_m: Number(routeRows[0].length_m) || 0,
-    coords: Array.isArray(edgeCoords(routeRows[0])) ? [...edgeCoords(routeRows[0])] : [],
+    coords: Array.isArray(edgeCoords(routeRows[0]))
+      ? [...edgeCoords(routeRows[0])]
+      : [],
   };
 
   for (let i = 1; i < routeRows.length; i++) {
@@ -197,12 +200,16 @@ function classifyTurn(deltaDeg) {
   const a = Math.abs(d);
 
   if (a >= 165) return { type: "uturn", text: "Make a U-turn" };
-  if (a >= 120) return { type: "sharp", text: d > 0 ? "Sharp right" : "Sharp left" };
-  if (a >= 45)  return { type: "turn",  text: d > 0 ? "Turn right" : "Turn left" };
+  if (a >= 120)
+    return { type: "sharp", text: d > 0 ? "Sharp right" : "Sharp left" };
+  if (a >= 45)
+    return { type: "turn", text: d > 0 ? "Turn right" : "Turn left" };
 
   // keep vs slight (helps those “slight left/right”, “keep left/right” cases)
-  if (a >= 25)  return { type: "slight", text: d > 0 ? "Slight right" : "Slight left" };
-  if (a >= 10)  return { type: "keep",   text: d > 0 ? "Keep right" : "Keep left" };
+  if (a >= 25)
+    return { type: "slight", text: d > 0 ? "Slight right" : "Slight left" };
+  if (a >= 10)
+    return { type: "keep", text: d > 0 ? "Keep right" : "Keep left" };
 
   return null; // straight-ish
 }
@@ -236,8 +243,14 @@ function generateInstructionsFromSegments(segments) {
     const p2Arr = prev.coords[prev.coords.length - 1];
     const p3Arr = curr.coords[1];
 
-    const b1 = bearing({ lon: p1Arr[0], lat: p1Arr[1] }, { lon: p2Arr[0], lat: p2Arr[1] });
-    const b2 = bearing({ lon: p2Arr[0], lat: p2Arr[1] }, { lon: p3Arr[0], lat: p3Arr[1] });
+    const b1 = bearing(
+      { lon: p1Arr[0], lat: p1Arr[1] },
+      { lon: p2Arr[0], lat: p2Arr[1] },
+    );
+    const b2 = bearing(
+      { lon: p2Arr[0], lat: p2Arr[1] },
+      { lon: p3Arr[0], lat: p3Arr[1] },
+    );
     const delta = normalizeAngle(b2 - b1);
 
     const classified = classifyTurn(delta);
@@ -292,7 +305,11 @@ function generateInstructionsFromSegments(segments) {
 /* ================================================== */
 router.get("/route", async (req, res) => {
   try {
-    const { startLon, startLat, endLon, endLat } = req.query;
+    const { startLon, startLat, endLon, endLat, mode = "shortest" } = req.query;
+    const allowedModes = new Set(["shortest", "balanced"]);
+    const safeMode = allowedModes.has(mode) ? mode : "shortest";
+
+    console.log("🧭 Routing mode:", safeMode);
 
     if (!startLon || !startLat || !endLon || !endLat) {
       return res.status(400).json({ error: "Missing coordinates" });
@@ -307,7 +324,7 @@ router.get("/route", async (req, res) => {
         ORDER BY geom <-> ST_SetSRID(ST_Point($1,$2),4326)
         LIMIT 1;
         `,
-        [lon, lat]
+        [lon, lat],
       );
 
     const s = await snap(startLon, startLat);
@@ -321,29 +338,50 @@ router.get("/route", async (req, res) => {
     const endNode = e.rows[0].id;
 
     // ROUTING
-const routeQ = await db.query(
-  `
-  WITH r AS (
-    SELECT * FROM pgr_dijkstra(
-      'SELECT id, source, target, cost, COALESCE(reverse_cost, cost) AS reverse_cost FROM routing.ways',
-      $1::BIGINT,
-      $2::BIGINT,
-      false
-    )
+
+    let edgeSql;
+
+    if (safeMode === "balanced") {
+      edgeSql = `
+    SELECT id, source, target,
+           length_m * 1.05 AS cost,
+           length_m * 1.05 AS reverse_cost
+    FROM routing.ways
+    WHERE source IS NOT NULL AND target IS NOT NULL
+  `;
+    } else {
+      // shortest
+      edgeSql = `
+    SELECT id, source, target,
+           length_m AS cost,
+           length_m AS reverse_cost
+    FROM routing.ways
+    WHERE source IS NOT NULL AND target IS NOT NULL
+  `;
+    }
+
+    const routeQ = await db.query(
+      `
+WITH r AS (
+  SELECT * FROM pgr_dijkstra(
+    $1,
+    $2::BIGINT,
+    $3::BIGINT,
+    false
   )
-  SELECT
-    w.id,
-    w.name,
-    w.length_m,
-    ST_AsGeoJSON(w.geom) AS geojson,
-    r.seq
-  FROM r
-  JOIN routing.ways w ON r.edge = w.id
-  WHERE r.edge <> -1
-  ORDER BY r.seq;
-  `,
-  [startNode, endNode]
-);
+)
+SELECT
+  w.id,
+  w.length_m,
+  ST_AsGeoJSON(w.geom) AS geojson,
+  r.seq
+FROM r
+JOIN routing.ways w ON r.edge = w.id
+WHERE r.edge <> -1
+ORDER BY r.seq;
+`,
+      [edgeSql, startNode, endNode],
+    );
 
     if (!routeQ.rows.length) {
       return res.json({ error: "No path found" });
@@ -352,7 +390,7 @@ const routeQ = await db.query(
     // DISTANCE
     const totalMeters = routeQ.rows.reduce(
       (sum, r) => sum + Number(r.length_m || 0),
-      0
+      0,
     );
 
     // GEOMETRY (single polyline)
@@ -378,14 +416,13 @@ const routeQ = await db.query(
 
     // RESPONSE
     res.json({
-      startNode,
-      endNode,
-      geometry, // [lon,lat]
-      instructions,
-      summary: {
-        totalDistanceKm: totalMeters / 1000.0,
-      },
-    });
+  mode: safeMode,
+  geometry,
+  instructions,
+  summary: {
+    totalDistanceKm: totalMeters / 1000
+  }
+});
   } catch (err) {
     console.error("ROUTING ERROR", err);
     res.status(500).json({ error: err.message });
