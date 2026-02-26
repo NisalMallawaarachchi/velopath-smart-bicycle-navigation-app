@@ -34,7 +34,7 @@ class ColoredSegment {
 }
 
 class RoutingEngineProvider extends ChangeNotifier {
-  static const _backendBaseUrl = "http://192.168.8.176:5001";
+  static const _backendBaseUrl = "http://127.0.0.1:5001";
   static const _geoapifyKey = "32bb4486a6864bbbb20904ff39d832ca";
 
   final FlutterTts _tts = FlutterTts();
@@ -198,11 +198,13 @@ class RoutingEngineProvider extends ChangeNotifier {
 
   // ================= ROUTING =================
   Future<void> _fetchRoute() async {
-    _routePoints.clear();
-    _instructions.clear();
-    _segments.clear();
-    _currentInstructionIndex = 0;
+  _routePoints.clear();
+  _instructions.clear();
+  _segments.clear();
+  _currentInstructionIndex = 0;
+  _totalDistanceKm = 0;
 
+  try {
     final url = Uri.parse(
       "$_backendBaseUrl/api/pg-routing/route"
       "?startLon=${_startPoint!.longitude}"
@@ -211,36 +213,70 @@ class RoutingEngineProvider extends ChangeNotifier {
       "&endLat=${_endPoint!.latitude}",
     );
 
+    print("🌐 Fetching route from: $url");
+
     final res = await http.get(url);
-    if (res.statusCode != 200) return;
+    
+    print("📡 Response status: ${res.statusCode}");
+    print("📦 Response body: ${res.body}");
+
+    if (res.statusCode != 200) {
+      print("❌ Route fetch failed with status ${res.statusCode}");
+      return;
+    }
 
     final json = jsonDecode(res.body);
+    
+    print("✅ Parsed JSON: $json");
 
+    // Check if geometry exists
+    if (json["geometry"] == null) {
+      print("❌ No geometry in response");
+      return;
+    }
+
+    // Process geometry
     for (final c in json["geometry"]) {
       _routePoints.add(LatLng(c[1], c[0]));
     }
+    print("✅ Loaded ${_routePoints.length} route points");
 
-    for (final i in json["instructions"]) {
-      _instructions.add(
-        TurnInstruction(
-          textEn: i["textEn"],
-          location: LatLng(i["lat"], i["lon"]),
-        ),
-      );
+    // Process instructions
+    if (json["instructions"] != null) {
+      for (final i in json["instructions"]) {
+        _instructions.add(
+          TurnInstruction(
+            textEn: i["textEn"],
+            location: LatLng(i["lat"], i["lon"]),
+          ),
+        );
+      }
+      print("✅ Loaded ${_instructions.length} instructions");
     }
 
+    // Create colored segment
     _segments.add(
       ColoredSegment(
         points: List.of(_routePoints),
         color: const Color(0xFF1E88E5),
       ),
     );
+    print("✅ Created route segment");
 
-    _totalDistanceKm = (json["summary"]["totalDistanceKm"] as num).toDouble();
+    // Get distance
+    if (json["summary"] != null && json["summary"]["totalDistanceKm"] != null) {
+      _totalDistanceKm = (json["summary"]["totalDistanceKm"] as num).toDouble();
+      print("✅ Total distance: $_totalDistanceKm km");
+    }
 
     notifyListeners();
-  }
+    print("✅ Route fetch completed successfully");
 
+  } catch (e, stackTrace) {
+    print("❌ ERROR in _fetchRoute: $e");
+    print("❌ Stack trace: $stackTrace");
+  }
+}
   // ================= NAVIGATION =================
 Future<void> startNavigation() async {
   if (_instructions.isEmpty) return;

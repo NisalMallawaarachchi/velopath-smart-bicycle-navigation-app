@@ -6,6 +6,8 @@ import '../widgets/device_helper.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
+
+
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -205,7 +207,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ElevatedButton.icon(
                     onPressed: () => Navigator.pushNamed(context, AppRoutes.routingEngineTest),
                     icon: const Icon(Icons.route),
-                    label: const Text("Define Routes"),
+                    label: const Text("Start Riding"),
                     style: ElevatedButton.styleFrom(
                       minimumSize: const Size(double.infinity, 50),
                       backgroundColor: const Color(0xFF184652),

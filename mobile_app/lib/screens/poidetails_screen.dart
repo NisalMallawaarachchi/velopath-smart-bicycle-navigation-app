@@ -3,6 +3,8 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../widgets/device_helper.dart';
 
+
+
 class POIDetailsScreen extends StatelessWidget {
   final dynamic poi;
   const POIDetailsScreen({super.key, required this.poi});

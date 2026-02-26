@@ -16,6 +16,7 @@ const pool = new Pool({
   database: process.env.PGDATABASE,
   password: process.env.PGPASSWORD,
   port: Number(process.env.PGPORT || 5432), 
+
   ssl: isSupabase ? { rejectUnauthorized: false } : false,
 
   max: 20,
