@@ -321,29 +321,29 @@ router.get("/route", async (req, res) => {
     const endNode = e.rows[0].id;
 
     // ROUTING
-    const routeQ = await db.query(
-      `
-      WITH r AS (
-        SELECT * FROM pgr_dijkstra(
-          'SELECT id, source, target, cost, reverse_cost FROM routing.ways',
-          $1::BIGINT,
-          $2::BIGINT,
-          false
-        )
-      )
-      SELECT
-        w.id,
-        w.name,
-        w.length_m,
-        ST_AsGeoJSON(w.geom) AS geojson,
-        r.seq
-      FROM r
-      JOIN routing.ways w ON r.edge = w.id
-      WHERE r.edge <> -1
-      ORDER BY r.seq;
-      `,
-      [startNode, endNode]
-    );
+const routeQ = await db.query(
+  `
+  WITH r AS (
+    SELECT * FROM pgr_dijkstra(
+      'SELECT id, source, target, cost, COALESCE(reverse_cost, cost) AS reverse_cost FROM routing.ways',
+      $1::BIGINT,
+      $2::BIGINT,
+      false
+    )
+  )
+  SELECT
+    w.id,
+    w.name,
+    w.length_m,
+    ST_AsGeoJSON(w.geom) AS geojson,
+    r.seq
+  FROM r
+  JOIN routing.ways w ON r.edge = w.id
+  WHERE r.edge <> -1
+  ORDER BY r.seq;
+  `,
+  [startNode, endNode]
+);
 
     if (!routeQ.rows.length) {
       return res.json({ error: "No path found" });
