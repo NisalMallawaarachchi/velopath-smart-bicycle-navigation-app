@@ -306,7 +306,7 @@ function generateInstructionsFromSegments(segments) {
 router.get("/route", async (req, res) => {
   try {
     const { startLon, startLat, endLon, endLat, mode = "shortest" } = req.query;
-    const allowedModes = new Set(["shortest", "balanced"]);
+    const allowedModes = new Set(["shortest", "balanced", "safest", "scenic"]);
     const safeMode = allowedModes.has(mode) ? mode : "shortest";
 
     console.log("🧭 Routing mode:", safeMode);
@@ -341,16 +341,7 @@ router.get("/route", async (req, res) => {
 
     let edgeSql;
 
-    if (safeMode === "balanced") {
-      edgeSql = `
-    SELECT id, source, target,
-           length_m * 1.05 AS cost,
-           length_m * 1.05 AS reverse_cost
-    FROM routing.ways
-    WHERE source IS NOT NULL AND target IS NOT NULL
-  `;
-    } else {
-      // shortest
+    if (safeMode === "shortest") {
       edgeSql = `
     SELECT id, source, target,
            length_m AS cost,
@@ -358,40 +349,107 @@ router.get("/route", async (req, res) => {
     FROM routing.ways
     WHERE source IS NOT NULL AND target IS NOT NULL
   `;
+    } else if (safeMode === "safest") {
+      edgeSql = `
+    SELECT w.id, w.source, w.target,
+           (w.length_m + (
+             SELECT COALESCE(COUNT(*), 0) * 500 
+             FROM public.hazards h 
+             WHERE ST_DWithin(w.geom, h.location, 0.0005)
+           )) AS cost,
+           (w.length_m + (
+             SELECT COALESCE(COUNT(*), 0) * 500 
+             FROM public.hazards h 
+             WHERE ST_DWithin(w.geom, h.location, 0.0005)
+           )) AS reverse_cost
+    FROM routing.ways w
+    WHERE w.source IS NOT NULL AND w.target IS NOT NULL
+  `;
+    } else if (safeMode === "scenic") {
+      edgeSql = `
+    SELECT w.id, w.source, w.target,
+           GREATEST(0.1, w.length_m - COALESCE((
+             SELECT AVG(p.score) * 20
+             FROM public.custom_pois p 
+             WHERE ST_DWithin(w.geom, p.geom, 0.0005)
+           ), 0)) AS cost,
+           GREATEST(0.1, w.length_m - COALESCE((
+             SELECT AVG(p.score) * 20
+             FROM public.custom_pois p 
+             WHERE ST_DWithin(w.geom, p.geom, 0.0005)
+           ), 0)) AS reverse_cost
+    FROM routing.ways w
+    WHERE w.source IS NOT NULL AND w.target IS NOT NULL
+  `;
+    } else {
+      // balanced
+      edgeSql = `
+    SELECT id, source, target,
+           cost,
+           reverse_cost
+    FROM routing.dynamic_balanced
+  `;
     }
 
     const routeQ = await db.query(
       `
-WITH r AS (
-  SELECT * FROM pgr_dijkstra(
-    $1,
-    $2::BIGINT,
-    $3::BIGINT,
-    false
-  )
-)
 SELECT
   w.id,
   w.length_m,
+
+  EXISTS (
+    SELECT 1
+    FROM public.hazards h
+    WHERE ST_DWithin(w.geom, h.location, 0.0005)
+  ) AS has_hazard,
+
+  COALESCE((
+    SELECT AVG(p.score)
+    FROM public.custom_pois p
+    WHERE ST_DWithin(w.geom, p.geom, 0.0005)
+  ), 0) AS poi_score,
+
   ST_AsGeoJSON(w.geom) AS geojson,
   r.seq
-FROM r
-JOIN routing.ways w ON r.edge = w.id
-WHERE r.edge <> -1
+
+FROM pgr_dijkstra(
+  $$
+  ${edgeSql}
+  $$,
+  $1::BIGINT,
+  $2::BIGINT,
+  true
+) AS r
+JOIN routing.ways w
+ON r.edge = w.id
 ORDER BY r.seq;
 `,
-      [edgeSql, startNode, endNode],
+      [startNode, endNode],
     );
-
     if (!routeQ.rows.length) {
       return res.json({ error: "No path found" });
     }
 
-    // DISTANCE
+    // ===== COMPUTE TOTALS =====
+
+    // Distance
     const totalMeters = routeQ.rows.reduce(
       (sum, r) => sum + Number(r.length_m || 0),
       0,
     );
+
+    // Hazard count + POI total
+    let totalHazards = 0;
+    let totalPoiScore = 0;
+
+    routeQ.rows.forEach((r) => {
+      if (r.has_hazard) totalHazards++;
+      totalPoiScore += Number(r.poi_score || 0);
+    });
+
+    // Average POI score
+    const avgPoiScore =
+      routeQ.rows.length > 0 ? totalPoiScore / routeQ.rows.length : 0;
 
     // GEOMETRY (single polyline)
     const stitched = stitchRouteCoordinates(routeQ.rows);
@@ -416,13 +474,15 @@ ORDER BY r.seq;
 
     // RESPONSE
     res.json({
-  mode: safeMode,
-  geometry,
-  instructions,
-  summary: {
-    totalDistanceKm: totalMeters / 1000
-  }
-});
+      mode: safeMode,
+      geometry,
+      instructions,
+      summary: {
+        totalDistanceKm: totalMeters / 1000,
+        totalHazards,
+        avgPoiScore,
+      },
+    });
   } catch (err) {
     console.error("ROUTING ERROR", err);
     res.status(500).json({ error: err.message });
