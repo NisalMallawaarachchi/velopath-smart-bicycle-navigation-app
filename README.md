@@ -83,7 +83,10 @@ This intelligent system that:
 - Optimized rendering using Selector-based rebuilds
 
 ### 🗺️ POI Gamification (Component 4)
-
+- Motivate cyclists to explore scenic and culturally significant hidden locations
+- Improve POI data accuracy through community interaction
+- Distance-based POI suggestions along active routes
+- Up vote and down vote sytstem
 
 ### 📱 Mobile Application
 - Cross-platform (Android & iOS) using Flutter
@@ -97,7 +100,6 @@ This intelligent system that:
   - Safest
   - Scenic
   - Balanced
-- 
 
 ---
 
@@ -1127,6 +1129,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 | Component | Responsibility | Developer | ID |
 |-----------|---------------|-----------|-----|
-| **Component 1** | ML-based Hazard Detection | Gayasri | IT22XXXXX |
-| **Component 2** | Hazard Verification System | Nisal | IT22899538|
-| **Component 3** | Multi-Objective Route Generation Engine | Shakya | IT22893352 |
+| **Component 1** | ML-based Hazard Detection | Gayasri Pethum | IT22031266 |
+| **Component 2** | Hazard Verification System | Nisal Mallawaarachchi | IT22899538|
+| **Component 3** | Multi-Objective Route Generation Engine | Shakya K. Gurusinghe| IT22893352 |
+| **Component 4** | Gamified Discovery of Local Points-of-Interest (POI) | Thiruni Jayasinghe| IT22341990 |

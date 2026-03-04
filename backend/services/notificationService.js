@@ -13,7 +13,7 @@ class NotificationService {
 
   /**
    * Get hazards that cyclist is approaching (within 50m ahead)
-   * Used to show: "⚠️ POTHOLE AHEAD - Is it still there?"
+   * Used to show: "POTHOLE AHEAD - Is it still there?"
    */
   async getApproachingHazards(userLat, userLon, userHeading = null) {
     try {

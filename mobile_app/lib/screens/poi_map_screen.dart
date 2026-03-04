@@ -3,6 +3,8 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:mobile_app/screens/poidetails_screen.dart';
 
+
+
 class POIMapScreen extends StatefulWidget {
   final LatLng startPoint;
   final dynamic selectedPoi;

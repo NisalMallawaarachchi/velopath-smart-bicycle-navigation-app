@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'signup_screen.dart';
 import '../dashboard_screen.dart';
 
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -25,12 +26,7 @@ class _LoginScreenState extends State<LoginScreen> {
               children: [
                 const SizedBox(height: 40),
 
-                Center(
-                  child: Image.asset(
-                    'assets/logo.png',
-                    height: 120,
-                  ),
-                ),
+                Center(child: Image.asset('assets/logo.png', height: 120)),
 
                 const SizedBox(height: 30),
 
@@ -106,7 +102,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (_) => const SignupScreen()),
+                          MaterialPageRoute(
+                            builder: (_) => const SignupScreen(),
+                          ),
                         );
                       },
                       child: const Text(
