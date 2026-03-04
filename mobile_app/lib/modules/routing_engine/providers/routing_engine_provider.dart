@@ -215,6 +215,8 @@ class RoutingEngineProvider extends ChangeNotifier {
     _segments.clear();
     _currentInstructionIndex = 0;
     _totalDistanceKm = 0;
+    _totalHazards = 0;
+    _avgPoiScore = 0.0;
 
     try {
       final profileParam = _profileToParam(_activeProfile);
@@ -278,12 +280,21 @@ class RoutingEngineProvider extends ChangeNotifier {
       );
       print("✅ Created route segment");
 
-      // Get distance
-      if (json["summary"] != null &&
-          json["summary"]["totalDistanceKm"] != null) {
-        _totalDistanceKm = (json["summary"]["totalDistanceKm"] as num)
-            .toDouble();
-        print("✅ Total distance: $_totalDistanceKm km");
+      // Get summary stats
+      if (json["summary"] != null) {
+        final summary = json["summary"];
+        if (summary["totalDistanceKm"] != null) {
+          _totalDistanceKm = (summary["totalDistanceKm"] as num).toDouble();
+          print("✅ Total distance: $_totalDistanceKm km");
+        }
+        if (summary["totalHazards"] != null) {
+          _totalHazards = (summary["totalHazards"] as num).toInt();
+          print("✅ Total hazards: $_totalHazards");
+        }
+        if (summary["avgPoiScore"] != null) {
+          _avgPoiScore = (summary["avgPoiScore"] as num).toDouble();
+          print("✅ Avg POI score: $_avgPoiScore");
+        }
       }
 
       notifyListeners();
