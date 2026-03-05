@@ -6,7 +6,7 @@ import 'package:motion_trace/models/sensor_reading.dart';
 class ApiService {
   // Backend URL - use your computer's IP address for real device
   // For emulator use 10.0.2.2, for real device use your computer's WiFi IP
-  static const String baseUrl = 'http://192.168.8.118:5001';
+  static const String baseUrl = 'http://10.124.69.59:5001';
   
   /// Check if the backend ML service is available
   static Future<Map<String, dynamic>> checkHealth() async {

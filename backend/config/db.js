@@ -16,11 +16,11 @@ const pool = new Pool({
 pool
   .connect()
   .then((client) => {
-    console.log("✅ Connected to PostgreSQL + PostGIS successfully!");
+    console.log("Connected to PostgreSQL + PostGIS successfully!");
     client.release();
   })
   .catch((err) => {
-    console.error("❌ Database connection error:", err.message);
+    console.error("Database connection error:", err.message);
   });
 
 export default pool;

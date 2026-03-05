@@ -201,7 +201,7 @@ export const uploadLabeledData = async (req, res) => {
     }
 
     if (sensorData.length < 10) {
-      console.log("❌ Not enough data:", sensorData.length);
+      console.log(" Not enough data:", sensorData.length);
       return res.status(400).json({
         success: false,
         error: "Need at least 10 sensor readings",

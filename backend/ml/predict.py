@@ -149,13 +149,13 @@ if __name__ == '__main__':
             
             result = predict(demo_data)
             
-            print(f"\n📊 Prediction Results:")
+            print(f"\n Prediction Results:")
             print(f"Total windows analyzed: {result['summary']['total_windows']}")
             print(f"Hazards detected: {result['summary']['hazards_detected']}")
             print(f"\nHazard counts: {result['summary']['hazard_counts']}")
             
             if result['summary']['hazard_locations']:
-                print(f"\n🚨 Hazard Locations:")
+                print(f"\n Hazard Locations:")
                 for h in result['summary']['hazard_locations'][:5]:  # Show first 5
                     print(f"  - {h['hazard_type']} (confidence: {h['confidence']:.2f}) at index {h['reading_index']}")
         else:
