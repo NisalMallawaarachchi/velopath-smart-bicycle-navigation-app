@@ -21,7 +21,6 @@ class _POIDetailsScreenState extends State<POIDetailsScreen> {
   bool loadingComments = true;
   final TextEditingController _commentController = TextEditingController();
 
-  // Helper: safely parse score
   double parseScore(dynamic s) {
     if (s == null) return 0.0;
     if (s is double) return s;
@@ -30,7 +29,6 @@ class _POIDetailsScreenState extends State<POIDetailsScreen> {
     return 0.0;
   }
 
-  // Helper: safely parse vote count
   int parseVoteCount(dynamic c) {
     if (c == null) return 0;
     if (c is int) return c;
@@ -133,7 +131,6 @@ class _POIDetailsScreenState extends State<POIDetailsScreen> {
           ),
         );
         
-        // Refresh comments
         fetchComments();
       } else {
         final data = jsonDecode(response.body);
@@ -154,7 +151,7 @@ class _POIDetailsScreenState extends State<POIDetailsScreen> {
     }
   }
 
-  Future<void> submitVote(BuildContext context, double percentage) async {
+  Future<void> submitVote(BuildContext context, int rating) async {
     try {
       final deviceId = await getDeviceId();
 
@@ -162,7 +159,7 @@ class _POIDetailsScreenState extends State<POIDetailsScreen> {
         Uri.parse(ApiConfig.votePoi(poiData['id'])),
         headers: {"Content-Type": "application/json"},
         body: json.encode({
-          "percentage": percentage,
+          "rating": rating,
           "deviceId": deviceId,
           "source": poiData['source'],
           "poi": {
@@ -180,7 +177,6 @@ class _POIDetailsScreenState extends State<POIDetailsScreen> {
       if (response.statusCode == 200 || response.statusCode == 409) {
         final fetchId = data['customPoiId'] ?? poiData['id'];
 
-        // Update UI directly from vote response if available
         if (data.containsKey('score') && data.containsKey('voteCount')) {
           setState(() {
             score = parseScore(data['score']);
@@ -189,7 +185,6 @@ class _POIDetailsScreenState extends State<POIDetailsScreen> {
             poiData['source'] = 'custom';
           });
         } else {
-          // Fallback: fetch fresh data from backend
           final detailsResponse =
               await http.get(Uri.parse(ApiConfig.poiById(fetchId)));
           if (detailsResponse.statusCode == 200) {
@@ -209,8 +204,8 @@ class _POIDetailsScreenState extends State<POIDetailsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(response.statusCode == 200
-                ? "Thanks for voting! New score: ${score.toStringAsFixed(1)}%"
-                : "You have already voted! Score: ${score.toStringAsFixed(1)}%"),
+                ? "Thanks for rating! Average: ${score.toStringAsFixed(1)} ⭐"
+                : "You have already rated! Score: ${score.toStringAsFixed(1)} ⭐"),
             backgroundColor:
                 response.statusCode == 200 ? Colors.green : Colors.orange,
           ),
@@ -226,7 +221,7 @@ class _POIDetailsScreenState extends State<POIDetailsScreen> {
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Unable to submit vote. Try again later."),
+          content: Text("Unable to submit rating. Try again later."),
           backgroundColor: Colors.red,
         ),
       );
@@ -234,7 +229,7 @@ class _POIDetailsScreenState extends State<POIDetailsScreen> {
   }
 
   void openVotePopup(BuildContext context) {
-    double selectedValue = 50;
+    int selectedRating = 3;
 
     showModalBottomSheet(
       context: context,
@@ -245,7 +240,7 @@ class _POIDetailsScreenState extends State<POIDetailsScreen> {
         return StatefulBuilder(
           builder: (context, setStateModal) {
             return Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -253,41 +248,64 @@ class _POIDetailsScreenState extends State<POIDetailsScreen> {
                     "Rate This Place",
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
-                  const SizedBox(height: 20),
-                  Slider(
-                    value: selectedValue,
-                    min: 0,
-                    max: 100,
-                    divisions: 100,
-                    label: "${selectedValue.toInt()}%",
-                    onChanged: (value) =>
-                        setStateModal(() => selectedValue = value),
+                  const SizedBox(height: 8),
+                  const Text(
+                    "Tap a star to select your rating",
+                    style: TextStyle(fontSize: 14, color: Colors.grey),
                   ),
+                  const SizedBox(height: 24),
+
+                  // Star rating row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(5, (index) {
+                      final starValue = index + 1;
+                      return GestureDetector(
+                        onTap: () =>
+                            setStateModal(() => selectedRating = starValue),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          child: Icon(
+                            starValue <= selectedRating
+                                ? Icons.star_rounded
+                                : Icons.star_border_rounded,
+                            size: 48,
+                            color: starValue <= selectedRating
+                                ? Colors.amber
+                                : Colors.grey.shade400,
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+
+                  const SizedBox(height: 12),
                   Text(
-                    "${selectedValue.toInt()}%",
+                    _ratingLabel(selectedRating),
                     style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
                     ),
                   ),
-                  const SizedBox(height: 20),
+
+                  const SizedBox(height: 24),
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color.fromARGB(255, 35, 126, 196),
                       padding: const EdgeInsets.symmetric(
-                        vertical: 14,
-                        horizontal: 40,
-                      ),
+                          vertical: 14, horizontal: 40),
                     ),
                     onPressed: () async {
-                      await submitVote(context, selectedValue);
+                      await submitVote(context, selectedRating);
                       Navigator.pop(context, poiData);
                     },
                     child: const Text(
-                      "Submit Vote",
+                      "Submit Rating",
                       style: TextStyle(color: Colors.white, fontSize: 16),
                     ),
                   ),
+                  const SizedBox(height: 8),
                 ],
               ),
             );
@@ -297,14 +315,23 @@ class _POIDetailsScreenState extends State<POIDetailsScreen> {
     );
   }
 
+  String _ratingLabel(int rating) {
+    switch (rating) {
+      case 1: return "Poor";
+      case 2: return "Fair";
+      case 3: return "Good";
+      case 4: return "Very Good";
+      case 5: return "Excellent";
+      default: return "";
+    }
+  }
+
   String _formatTimestamp(String? timestamp) {
     if (timestamp == null) return '';
-    
     try {
       final dateTime = DateTime.parse(timestamp);
       final now = DateTime.now();
       final difference = now.difference(dateTime);
-      
       if (difference.inDays > 7) {
         return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
       } else if (difference.inDays > 0) {
@@ -323,15 +350,19 @@ class _POIDetailsScreenState extends State<POIDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final name = poiData['name'] ?? "POI";
-    final amenity = poiData['amenity'] ?? "";
-    final district = poiData['district'] ?? "Unknown";
-    final desc = poiData['description'] ?? "No description available";
+    final name     = poiData['name']        ?? "POI";
+    final amenity  = poiData['amenity']     ?? "";
+    final district = poiData['district']    ?? "Unknown";
+    final desc     = poiData['description'] ?? "No description available";
     final imageUrl = poiData['image_url'];
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(name),
+        title: Text(
+          name,
+          style: const TextStyle(color: Colors.white),        // ← white title
+        ),
+        iconTheme: const IconThemeData(color: Colors.white),  // ← white back arrow
         backgroundColor: const Color.fromARGB(255, 19, 85, 151),
       ),
       body: SingleChildScrollView(
@@ -374,30 +405,48 @@ class _POIDetailsScreenState extends State<POIDetailsScreen> {
 
             // Score
             Center(
-              child: Text(
-                "Score: ${score.toStringAsFixed(1)}% ($voteCount vote${voteCount == 1 ? '' : 's'})",
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(5, (index) {
+                      final starValue = index + 1;
+                      return Icon(
+                        starValue <= score.round()
+                            ? Icons.star_rounded
+                            : (starValue - 0.5 <= score
+                                ? Icons.star_half_rounded
+                                : Icons.star_border_rounded),
+                        color: Colors.amber,
+                        size: 28,
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "${score.toStringAsFixed(1)} / 5  ($voteCount vote${voteCount == 1 ? '' : 's'})",
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
               ),
             ),
 
             const SizedBox(height: 20),
 
-            // Vote Button
+            // Rate Button
             Center(
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color.fromARGB(255, 9, 71, 98),
                   padding: const EdgeInsets.symmetric(
-                    vertical: 14,
-                    horizontal: 40,
-                  ),
+                      vertical: 14, horizontal: 40),
                 ),
                 onPressed: () => openVotePopup(context),
                 child: const Text(
-                  "Vote",
+                  "Rate This Place",
                   style: TextStyle(color: Colors.white, fontSize: 17),
                 ),
               ),
@@ -408,16 +457,13 @@ class _POIDetailsScreenState extends State<POIDetailsScreen> {
             // Comments Section
             const Divider(thickness: 1),
             const SizedBox(height: 16),
-            
+
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text(
                   "Comments",
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
                 Text(
                   "${comments.length}",
@@ -460,9 +506,7 @@ class _POIDetailsScreenState extends State<POIDetailsScreen> {
                         backgroundColor: const Color.fromARGB(255, 9, 71, 98),
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 10,
-                        ),
+                            horizontal: 20, vertical: 10),
                       ),
                     ),
                   ),
@@ -486,26 +530,21 @@ class _POIDetailsScreenState extends State<POIDetailsScreen> {
                           padding: const EdgeInsets.all(20),
                           child: Column(
                             children: [
-                              Icon(
-                                Icons.comment_outlined,
-                                size: 48,
-                                color: Colors.grey.shade400,
-                              ),
+                              Icon(Icons.comment_outlined,
+                                  size: 48, color: Colors.grey.shade400),
                               const SizedBox(height: 12),
                               Text(
                                 "No comments yet",
                                 style: TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.grey.shade600,
-                                ),
+                                    fontSize: 16,
+                                    color: Colors.grey.shade600),
                               ),
                               const SizedBox(height: 4),
                               Text(
                                 "Be the first to share your experience!",
                                 style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey.shade500,
-                                ),
+                                    fontSize: 14,
+                                    color: Colors.grey.shade500),
                               ),
                             ],
                           ),
@@ -532,7 +571,8 @@ class _POIDetailsScreenState extends State<POIDetailsScreen> {
                                   children: [
                                     CircleAvatar(
                                       radius: 16,
-                                      backgroundColor: const Color.fromARGB(255, 9, 71, 98),
+                                      backgroundColor:
+                                          const Color.fromARGB(255, 9, 71, 98),
                                       child: Text(
                                         (comment['device_id'] ?? 'U')
                                             .toString()
@@ -548,21 +588,21 @@ class _POIDetailsScreenState extends State<POIDetailsScreen> {
                                     const SizedBox(width: 10),
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           Text(
                                             "User ${comment['device_id']?.toString().substring(0, 8) ?? 'Anonymous'}",
                                             style: const TextStyle(
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 14,
-                                            ),
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 14),
                                           ),
                                           Text(
-                                            _formatTimestamp(comment['created_at']),
+                                            _formatTimestamp(
+                                                comment['created_at']),
                                             style: TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.grey.shade600,
-                                            ),
+                                                fontSize: 12,
+                                                color: Colors.grey.shade600),
                                           ),
                                         ],
                                       ),
@@ -573,9 +613,7 @@ class _POIDetailsScreenState extends State<POIDetailsScreen> {
                                 Text(
                                   comment['comment'] ?? '',
                                   style: const TextStyle(
-                                    fontSize: 14,
-                                    height: 1.4,
-                                  ),
+                                      fontSize: 14, height: 1.4),
                                 ),
                               ],
                             ),

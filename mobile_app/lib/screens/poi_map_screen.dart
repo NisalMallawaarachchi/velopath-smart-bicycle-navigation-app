@@ -93,17 +93,16 @@ class _POIMapScreenState extends State<POIMapScreen> {
     final updatedPoi = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => POIDetailsScreen(poi: selectedPoi,
-        onLoyaltyUpdated: widget.onLoyaltyUpdated,
+        builder: (_) => POIDetailsScreen(
+          poi: selectedPoi,
+          onLoyaltyUpdated: widget.onLoyaltyUpdated,
         ),
-        
       ),
-      
     );
 
     if (updatedPoi != null) {
       setState(() {
-        selectedPoi = updatedPoi; // Update locally with the latest data
+        selectedPoi = updatedPoi;
       });
     }
   }
@@ -126,8 +125,7 @@ class _POIMapScreenState extends State<POIMapScreen> {
         point: poiLatLng,
         width: 40,
         height: 40,
-        child:
-            const Icon(Icons.location_on, size: 36, color: Colors.red),
+        child: const Icon(Icons.location_on, size: 36, color: Colors.red),
       ),
     ];
 
@@ -157,7 +155,11 @@ class _POIMapScreenState extends State<POIMapScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(poiName),
+        title: Text(
+          poiName,
+          style: const TextStyle(color: Colors.white),
+        ),
+        iconTheme: const IconThemeData(color: Colors.white), // back arrow white
         backgroundColor: const Color.fromARGB(255, 18, 68, 82),
       ),
       body: FlutterMap(
@@ -212,7 +214,7 @@ class _POIMapScreenState extends State<POIMapScreen> {
                     backgroundColor: const Color.fromARGB(255, 35, 111, 122),
                     foregroundColor: Colors.white,
                   ),
-                  onPressed: openPOIDetails, // await result
+                  onPressed: openPOIDetails,
                   child: const Text("View Details"),
                 ),
                 ElevatedButton.icon(

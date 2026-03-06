@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:mobile_app/screens/poi_map_screen.dart';
 import 'package:mobile_app/screens/add_poi_screen.dart';
@@ -15,20 +16,17 @@ class PoiScreen extends StatefulWidget {
 }
 
 class _PoiScreenState extends State<PoiScreen> {
-  // Data
   List<dynamic> pois = [];
   List<dynamic> filteredPois = [];
   bool isLoading = true;
   int loyaltyPoints = 0;
 
-  // Filters
   String selectedDistrict = "All";
   String selectedTier = "All";
   String searchQuery = "";
   bool showLowQuality = false;
 
   LatLng? myLocation;
-
   final double displayRadiusKm = 5.0;
   final Distance distance = const Distance();
 
@@ -43,7 +41,6 @@ class _PoiScreenState extends State<PoiScreen> {
     await fetchPOIs();
   }
 
-  // ✅ FIX 1: sends district param to backend
   Future<void> fetchPOIs() async {
     if (mounted) setState(() => isLoading = true);
 
@@ -56,14 +53,11 @@ class _PoiScreenState extends State<PoiScreen> {
       final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-
         pois = List<dynamic>.from(data['pois']);
-
         for (var poi in pois) {
           poi['district'] ??= "Other";
-          poi['tier'] ??= "low";
+          poi['tier'] ??= "new";
         }
-
         applyFilters();
       } else {
         throw Exception('Failed to load POIs (status ${response.statusCode})');
@@ -80,33 +74,54 @@ class _PoiScreenState extends State<PoiScreen> {
     }
   }
 
+  /// Mirrors the backend qualityTier logic.
+  /// Returns "new" if no votes, otherwise "high"/"medium"/"low".
+  String _recalculateTier(double score, int voteCount) {
+    if (voteCount == 0) return "new";
+    final normalizedScore = (score / 5) * 100;
+    final scorePart = normalizedScore * 0.7;
+    final votePart = math.log(1 + voteCount) * (30 / math.log(101));
+    final qs = (scorePart + votePart).clamp(0.0, 100.0);
+    if (qs >= 65) return "high";
+    if (qs >= 35) return "medium";
+    return "low";
+  }
+
   void applyFilters() {
     final q = searchQuery.toLowerCase();
 
     final filtered = pois.where((poi) {
-      final amenity = (poi['amenity'] ?? "").toString().toLowerCase();
-      final name    = (poi['name']    ?? "").toString().toLowerCase();
-      final tier    = (poi['tier']    ?? "low").toString();
+      final amenity   = (poi['amenity'] ?? "").toString().toLowerCase();
+      final name      = (poi['name']    ?? "").toString().toLowerCase();
+      final tier      = (poi['tier']    ?? "new").toString();
+      final voteCount = _parseInt(poi['vote_count']);
 
-      final matchesSearch     = amenity.contains(q) || name.contains(q);
-      final matchesTierFilter = selectedTier == "All" || tier == selectedTier;
-      final matchesVisibility = showLowQuality || tier != "low";
+      final matchesSearch = amenity.contains(q) || name.contains(q);
 
-      // ✅ FIX 3: proximity only active when "All" districts selected
-      // When a specific district is chosen, skip proximity check
+      // Filter by tier — "new" means strictly zero votes
+      bool matchesTierFilter;
+      if (selectedTier == "All") {
+        matchesTierFilter = true;
+      } else if (selectedTier == "new") {
+        matchesTierFilter = voteCount == 0; // only genuinely unvoted POIs
+      } else {
+        matchesTierFilter = voteCount > 0 && tier == selectedTier;
+      }
+
+      // Unvoted POIs are always shown; low-tier POIs respect the toggle
+      final matchesVisibility =
+          voteCount == 0 || showLowQuality || tier != "low";
+
       bool matchesProximity = true;
       if (myLocation != null && selectedDistrict == "All") {
         final latRaw = poi['lat'];
         final lonRaw = poi['lon'];
-
         double? poiLat;
         double? poiLon;
-
         if (latRaw is String) poiLat = double.tryParse(latRaw);
         if (lonRaw is String) poiLon = double.tryParse(lonRaw);
         if (latRaw is num) poiLat = latRaw.toDouble();
         if (lonRaw is num) poiLon = lonRaw.toDouble();
-
         if (poiLat != null && poiLon != null) {
           final distKm =
               distance(LatLng(poiLat, poiLon), myLocation!) / 1000.0;
@@ -124,6 +139,22 @@ class _PoiScreenState extends State<PoiScreen> {
 
     if (!mounted) return;
     setState(() => filteredPois = filtered);
+  }
+
+  int _parseInt(dynamic v) {
+    if (v == null) return 0;
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    if (v is String) return int.tryParse(v) ?? 0;
+    return 0;
+  }
+
+  double _parseDouble(dynamic v) {
+    if (v == null) return 0.0;
+    if (v is double) return v;
+    if (v is int) return v.toDouble();
+    if (v is String) return double.tryParse(v) ?? 0.0;
+    return 0.0;
   }
 
   Future<void> getMyLocation({bool silent = false}) async {
@@ -163,7 +194,6 @@ class _PoiScreenState extends State<PoiScreen> {
 
       final position = await Geolocator.getCurrentPosition(
           desiredAccuracy: LocationAccuracy.best);
-
       if (!mounted) return;
       setState(
           () => myLocation = LatLng(position.latitude, position.longitude));
@@ -180,36 +210,54 @@ class _PoiScreenState extends State<PoiScreen> {
 
   Color _tierColor(String tier) {
     switch (tier) {
-      case 'high':
-        return Colors.green;
-      case 'medium':
-        return Colors.orange;
-      default:
-        return Colors.grey;
+      case 'high':   return Colors.green;
+      case 'medium': return Colors.orange;
+      case 'new':    return Colors.blue;
+      default:       return Colors.grey;
     }
   }
 
   IconData _tierIcon(String tier) {
     switch (tier) {
-      case 'high':
-        return Icons.star_rounded;
-      case 'medium':
-        return Icons.star_half_rounded;
-      default:
-        return Icons.star_border_rounded;
+      case 'high':   return Icons.star_rounded;
+      case 'medium': return Icons.star_half_rounded;
+      case 'new':    return Icons.fiber_new_rounded;
+      default:       return Icons.star_border_rounded;
     }
   }
 
-  Widget _buildPoiCard(Map<String, dynamic> poi) {
-    final name          = poi['name']          ?? "Unnamed";
-    final amenity       = poi['amenity']       ?? "";
-    final district      = poi['district']      ?? "";
-    final tier          = (poi['tier']         ?? "low").toString();
-    final adjustedScore = poi['adjustedScore'] ?? 0;
-    final voteCount     = poi['vote_count']    ?? 0;
+  Widget _buildStarRow(double score) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(5, (index) {
+        final starValue = index + 1;
+        IconData icon;
+        if (starValue <= score) {
+          icon = Icons.star_rounded;
+        } else if (starValue - 0.5 <= score) {
+          icon = Icons.star_half_rounded;
+        } else {
+          icon = Icons.star_border_rounded;
+        }
+        return Icon(icon, color: Colors.amber, size: 14);
+      }),
+    );
+  }
 
-    final color = _tierColor(tier);
-    final icon  = _tierIcon(tier);
+  Widget _buildPoiCard(Map<String, dynamic> poi) {
+    final name      = poi['name']     ?? "Unnamed";
+    final amenity   = poi['amenity']  ?? "";
+    final district  = poi['district'] ?? "";
+    final tier      = (poi['tier']    ?? "new").toString();
+    final rawScore  = poi['adjustedScore'] ?? poi['score'] ?? 0;
+    final voteCount = _parseInt(poi['vote_count']);
+    // Use vote_count as the definitive signal — not the tier string
+    final isNew     = voteCount == 0;
+
+    final starScore = _parseDouble(rawScore);
+    final displayTier = isNew ? 'new' : tier;
+    final color = _tierColor(displayTier);
+    final icon  = _tierIcon(displayTier);
 
     return Card(
       elevation: tier == 'high' ? 3 : tier == 'medium' ? 1.5 : 0.5,
@@ -218,7 +266,9 @@ class _PoiScreenState extends State<PoiScreen> {
         borderRadius: BorderRadius.circular(10),
         side: tier == 'high'
             ? BorderSide(color: Colors.green.withOpacity(0.4), width: 1)
-            : BorderSide.none,
+            : isNew
+                ? BorderSide(color: Colors.blue.withOpacity(0.35), width: 1)
+                : BorderSide.none,
       ),
       child: ListTile(
         contentPadding:
@@ -246,7 +296,7 @@ class _PoiScreenState extends State<PoiScreen> {
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
-                tier.toUpperCase(),
+                isNew ? "NEW" : tier.toUpperCase(),
                 style: TextStyle(
                     fontSize: 10,
                     color: color,
@@ -271,14 +321,28 @@ class _PoiScreenState extends State<PoiScreen> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.08),
+                  color: isNew
+                      ? Colors.blue.withOpacity(0.06)
+                      : Colors.blue.withOpacity(0.08),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text(
-                  "⭐ $adjustedScore  👥 $voteCount",
-                  style:
-                      const TextStyle(fontSize: 11, color: Colors.black54),
-                ),
+                child: isNew
+                    ? const Text(
+                        "Be the first to rate!",
+                        style: TextStyle(fontSize: 11, color: Colors.blue),
+                      )
+                    : Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildStarRow(starScore),
+                          const SizedBox(width: 4),
+                          Text(
+                            "${starScore.toStringAsFixed(1)}  👥 $voteCount",
+                            style: const TextStyle(
+                                fontSize: 11, color: Colors.black54),
+                          ),
+                        ],
+                      ),
               ),
             ],
           ),
@@ -310,8 +374,20 @@ class _PoiScreenState extends State<PoiScreen> {
               final index =
                   pois.indexWhere((p) => p['id'] == updatedPoi['id']);
               if (index != -1) {
-                pois[index] = updatedPoi;
-                applyFilters();
+                final merged = Map<String, dynamic>.from(pois[index]);
+
+                // Apply updated score/vote fields from the returned POI
+                merged['score']         = updatedPoi['score']         ?? merged['score'];
+                merged['vote_count']    = updatedPoi['vote_count']    ?? merged['vote_count'];
+                merged['adjustedScore'] = updatedPoi['adjustedScore'] ?? merged['adjustedScore'];
+
+                // Recalculate tier locally so card moves to the right section immediately
+                final newScore      = _parseDouble(merged['score']);
+                final newVoteCount  = _parseInt(merged['vote_count']);
+                merged['tier'] = _recalculateTier(newScore, newVoteCount);
+
+                pois[index] = merged;
+                applyFilters(); // instantly re-sections without network call
               }
             });
           }
@@ -320,8 +396,63 @@ class _PoiScreenState extends State<PoiScreen> {
     );
   }
 
+  Widget _buildSectionHeader(String label, IconData icon, Color color) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 12, 4, 6),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: color,
+              letterSpacing: 0.3,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+              child: Divider(color: color.withOpacity(0.3), thickness: 1)),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildSectionedList() {
+    // Section split is driven by vote_count, not the tier string
+    final ranked =
+        filteredPois.where((p) => _parseInt(p['vote_count']) > 0).toList();
+    final newPois =
+        filteredPois.where((p) => _parseInt(p['vote_count']) == 0).toList();
+
+    final items = <Widget>[];
+
+    if (ranked.isNotEmpty) {
+      items.add(_buildSectionHeader(
+          "Rated Places", Icons.star_rounded, Colors.orange));
+      for (final poi in ranked) {
+        items.add(_buildPoiCard(Map<String, dynamic>.from(poi)));
+      }
+    }
+
+    if (newPois.isNotEmpty) {
+      items.add(_buildSectionHeader(
+          "New Places", Icons.fiber_new_rounded, Colors.blue));
+      for (final poi in newPois) {
+        items.add(_buildPoiCard(Map<String, dynamic>.from(poi)));
+      }
+    }
+
+    return items;
+  }
+
   int get _lowQualityTotal =>
-      pois.where((p) => (p['tier'] ?? 'low') == 'low').length;
+      pois.where((p) => (p['tier'] ?? 'new') == 'low').length;
+
+  int get _newTotal =>
+      pois.where((p) => _parseInt(p['vote_count']) == 0).length;
 
   @override
   Widget build(BuildContext context) {
@@ -365,31 +496,12 @@ class _PoiScreenState extends State<PoiScreen> {
                       border: OutlineInputBorder(),
                     ),
                     items: [
-                      "All",
-                      "Colombo",
-                      "Gampaha",
-                      "Kalutara",
-                      "Kandy",
-                      "Matale",
-                      "Nuwara Eliya",
-                      "Galle",
-                      "Matara",
-                      "Hambantota",
-                      "Jaffna",
-                      "Kilinochchi",
-                      "Mannar",
-                      "Vavuniya",
-                      "Mullaitivu",
-                      "Batticaloa",
-                      "Ampara",
-                      "Trincomalee",
-                      "Kurunegala",
-                      "Puttalam",
-                      "Anuradhapura",
-                      "Polonnaruwa",
-                      "Badulla",
-                      "Monaragala",
-                      "Ratnapura",
+                      "All", "Colombo", "Gampaha", "Kalutara", "Kandy",
+                      "Matale", "Nuwara Eliya", "Galle", "Matara",
+                      "Hambantota", "Jaffna", "Kilinochchi", "Mannar",
+                      "Vavuniya", "Mullaitivu", "Batticaloa", "Ampara",
+                      "Trincomalee", "Kurunegala", "Puttalam", "Anuradhapura",
+                      "Polonnaruwa", "Badulla", "Monaragala", "Ratnapura",
                       "Kegalle",
                     ]
                         .map((d) => DropdownMenuItem(
@@ -397,7 +509,6 @@ class _PoiScreenState extends State<PoiScreen> {
                             child: Text(d,
                                 overflow: TextOverflow.ellipsis)))
                         .toList(),
-                    // ✅ FIX 2: calls fetchPOIs() to re-fetch with district
                     onChanged: (val) {
                       if (val == null) return;
                       setState(() => selectedDistrict = val);
@@ -440,6 +551,15 @@ class _PoiScreenState extends State<PoiScreen> {
                         size: 16, color: Colors.blueGrey),
                     const SizedBox(width: 6),
                     const Text("All Tiers"),
+                  ]),
+                ),
+                DropdownMenuItem(
+                  value: "new",
+                  child: Row(children: [
+                    const Icon(Icons.fiber_new_rounded,
+                        size: 16, color: Colors.blue),
+                    const SizedBox(width: 6),
+                    const Text("New (Unrated)"),
                   ]),
                 ),
                 DropdownMenuItem(
@@ -498,37 +618,67 @@ class _PoiScreenState extends State<PoiScreen> {
             ),
           ),
 
-          // ── Row 4: Hidden count + Show/Hide toggle ────────────────
+          // ── Row 4: Stats badges + toggle ─── uses Wrap ───────────
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[200],
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                Expanded(
+                  child: Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
                     children: [
-                      Icon(Icons.visibility_off,
-                          size: 13, color: Colors.grey[600]),
-                      const SizedBox(width: 4),
-                      Text(
-                        "$_lowQualityTotal low-quality hidden",
-                        style: TextStyle(
-                            fontSize: 11, color: Colors.grey[600]),
+                      if (_newTotal > 0)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.blue[50],
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.fiber_new_rounded,
+                                  size: 13, color: Colors.blue),
+                              const SizedBox(width: 3),
+                              Text(
+                                "$_newTotal new",
+                                style: const TextStyle(
+                                    fontSize: 11, color: Colors.blue),
+                              ),
+                            ],
+                          ),
+                        ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[200],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.visibility_off,
+                                size: 13, color: Colors.grey[600]),
+                            const SizedBox(width: 3),
+                            Text(
+                              "$_lowQualityTotal low hidden",
+                              style: TextStyle(
+                                  fontSize: 11, color: Colors.grey[600]),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
                 ),
-                const Spacer(),
                 TextButton.icon(
                   style: TextButton.styleFrom(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
+                        horizontal: 8, vertical: 4),
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
@@ -540,7 +690,7 @@ class _PoiScreenState extends State<PoiScreen> {
                     color: Colors.blueGrey,
                   ),
                   label: Text(
-                    showLowQuality ? "Hide low quality" : "Show all",
+                    showLowQuality ? "Hide low" : "Show all",
                     style: const TextStyle(
                         fontSize: 12, color: Colors.blueGrey),
                   ),
@@ -562,8 +712,7 @@ class _PoiScreenState extends State<PoiScreen> {
                 child: Text(
                   "${filteredPois.length} place${filteredPois.length == 1 ? '' : 's'} found"
                   "${selectedDistrict != 'All' ? ' in $selectedDistrict' : ''}",
-                  style:
-                      TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                 ),
               ),
             ),
@@ -586,14 +735,12 @@ class _PoiScreenState extends State<PoiScreen> {
                               selectedDistrict != "All"
                                   ? "No POIs found in $selectedDistrict."
                                   : "No POIs found.",
-                              style:
-                                  TextStyle(color: Colors.grey[500]),
+                              style: TextStyle(color: Colors.grey[500]),
                             ),
                             if (!showLowQuality && _lowQualityTotal > 0)
                               TextButton(
                                 onPressed: () {
-                                  setState(
-                                      () => showLowQuality = true);
+                                  setState(() => showLowQuality = true);
                                   applyFilters();
                                 },
                                 child: const Text(
@@ -602,15 +749,10 @@ class _PoiScreenState extends State<PoiScreen> {
                           ],
                         ),
                       )
-                    : ListView.builder(
+                    : ListView(
                         padding:
                             const EdgeInsets.fromLTRB(12, 0, 12, 80),
-                        itemCount: filteredPois.length,
-                        itemBuilder: (context, index) {
-                          final poi = Map<String, dynamic>.from(
-                              filteredPois[index]);
-                          return _buildPoiCard(poi);
-                        },
+                        children: _buildSectionedList(),
                       ),
           ),
         ],

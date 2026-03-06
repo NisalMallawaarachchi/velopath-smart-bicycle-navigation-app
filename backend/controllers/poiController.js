@@ -103,17 +103,17 @@ export const getPOIDetails = async (req, res) => {
   }
 };
 
-// Vote for a POI
+// Vote for a POI (rating: 1–5 stars)
 export const votePOI = async (req, res) => {
   try {
     const { id } = req.params;
-    const { percentage, deviceId, source, poi } = req.body;
+    const { rating, deviceId, source, poi } = req.body;
 
     if (!deviceId)
       return res.status(400).json({ error: "Device ID is required" });
 
-    if (percentage < 0 || percentage > 100)
-      return res.status(400).json({ error: "Invalid vote percentage" });
+    if (!rating || rating < 1 || rating > 5)
+      return res.status(400).json({ error: "Invalid rating. Must be between 1 and 5." });
 
     let customPoiId = id;
 
@@ -165,9 +165,9 @@ export const votePOI = async (req, res) => {
       });
     }
 
-    // Calculate new score
+    // Calculate new average score (stored as 1–5)
     const newCount = currentCount + 1;
-    const newScore = ((currentScore * currentCount) + percentage) / newCount;
+    const newScore = ((currentScore * currentCount) + rating) / newCount;
 
     devices.push(deviceId);
 
