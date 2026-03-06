@@ -34,7 +34,7 @@ class ColoredSegment {
 }
 
 class RoutingEngineProvider extends ChangeNotifier {
-  static const _backendBaseUrl = "http://172.28.1.3:5001";
+  static const _backendBaseUrl = "http://127.0.0.1:5001";
   static const _geoapifyKey = "32bb4486a6864bbbb20904ff39d832ca";
 
   final FlutterTts _tts = FlutterTts();
@@ -77,6 +77,18 @@ class RoutingEngineProvider extends ChangeNotifier {
   DateTime? _navigationStartedAt;
   LatLng? _lastLocation;
   double _distanceMoved = 0;
+  String _profileToParam(RouteProfile profile) {
+    switch (profile) {
+      case RouteProfile.shortest:
+        return "shortest";
+      case RouteProfile.balanced:
+        return "balanced";
+      case RouteProfile.safest:
+        return "safest";
+      case RouteProfile.scenic:
+        return "scenic";
+    }
+  }
 
   TurnInstruction? get currentInstruction =>
       (_currentInstructionIndex < _instructions.length)
@@ -202,85 +214,126 @@ class RoutingEngineProvider extends ChangeNotifier {
     _instructions.clear();
     _segments.clear();
     _currentInstructionIndex = 0;
+    _totalDistanceKm = 0;
 
-    final url = Uri.parse(
-      "$_backendBaseUrl/api/pg-routing/route"
-      "?startLon=${_startPoint!.longitude}"
-      "&startLat=${_startPoint!.latitude}"
-      "&endLon=${_endPoint!.longitude}"
-      "&endLat=${_endPoint!.latitude}",
-    );
+    try {
+      final profileParam = _profileToParam(_activeProfile);
 
-    final res = await http.get(url);
-    if (res.statusCode != 200) return;
+      final url = Uri.parse(
+        "$_backendBaseUrl/api/pg-routing/route"
+        "?startLon=${_startPoint!.longitude}"
+        "&startLat=${_startPoint!.latitude}"
+        "&endLon=${_endPoint!.longitude}"
+        "&endLat=${_endPoint!.latitude}"
+        "&mode=$profileParam",
+      );
 
-    final json = jsonDecode(res.body);
+      print("🌐 Fetching route from: $url");
 
-    for (final c in json["geometry"]) {
-      _routePoints.add(LatLng(c[1], c[0]));
-    }
+      final res = await http.get(url);
 
-    for (final i in json["instructions"]) {
-      _instructions.add(
-        TurnInstruction(
-          textEn: i["textEn"],
-          location: LatLng(i["lat"], i["lon"]),
+      print("📡 Response status: ${res.statusCode}");
+      print("📦 Response body: ${res.body}");
+
+      if (res.statusCode != 200) {
+        print("❌ Route fetch failed with status ${res.statusCode}");
+        return;
+      }
+
+      final json = jsonDecode(res.body);
+
+      print("✅ Parsed JSON: $json");
+
+      // Check if geometry exists
+      if (json["geometry"] == null) {
+        print("❌ No geometry in response");
+        return;
+      }
+
+      // Process geometry
+      for (final c in json["geometry"]) {
+        _routePoints.add(LatLng(c[1], c[0]));
+      }
+      print("✅ Loaded ${_routePoints.length} route points");
+
+      // Process instructions
+      if (json["instructions"] != null) {
+        for (final i in json["instructions"]) {
+          _instructions.add(
+            TurnInstruction(
+              textEn: i["textEn"],
+              location: LatLng(i["lat"], i["lon"]),
+            ),
+          );
+        }
+        print("✅ Loaded ${_instructions.length} instructions");
+      }
+
+      // Create colored segment
+      _segments.add(
+        ColoredSegment(
+          points: List.of(_routePoints),
+          color: const Color(0xFF1E88E5),
         ),
       );
+      print("✅ Created route segment");
+
+      // Get distance
+      if (json["summary"] != null &&
+          json["summary"]["totalDistanceKm"] != null) {
+        _totalDistanceKm = (json["summary"]["totalDistanceKm"] as num)
+            .toDouble();
+        print("✅ Total distance: $_totalDistanceKm km");
+      }
+
+      notifyListeners();
+      print("✅ Route fetch completed successfully");
+    } catch (e, stackTrace) {
+      print("❌ ERROR in _fetchRoute: $e");
+      print("❌ Stack trace: $stackTrace");
     }
-
-    _segments.add(
-      ColoredSegment(
-        points: List.of(_routePoints),
-        color: const Color(0xFF1E88E5),
-      ),
-    );
-
-    _totalDistanceKm = (json["summary"]["totalDistanceKm"] as num).toDouble();
-
-    notifyListeners();
   }
 
   // ================= NAVIGATION =================
-Future<void> startNavigation() async {
-  if (_instructions.isEmpty) return;
+  Future<void> startNavigation() async {
+    if (_instructions.isEmpty) return;
 
-  _isNavigating = true;
-  _currentInstructionIndex = 0;
-  _navigationStartedAt = DateTime.now();
-  _distanceMoved = 0;
-  _lastLocation = null;
+    _isNavigating = true;
+    _currentInstructionIndex = 0;
+    _navigationStartedAt = DateTime.now();
+    _distanceMoved = 0;
+    _lastLocation = null;
 
-  // Speak AFTER navigation truly starts
-  await _speak("Navigation started");
+    // Speak AFTER navigation truly starts
+    await _speak("Navigation started");
 
-  _posSub?.cancel();
-  _posSub = Geolocator.getPositionStream(
-    locationSettings: const LocationSettings(
-      accuracy: LocationAccuracy.bestForNavigation,
-      distanceFilter: 1,
-    ),
-  ).listen((pos) {
-    final newLoc = LatLng(pos.latitude, pos.longitude);
+    _posSub?.cancel();
+    _posSub =
+        Geolocator.getPositionStream(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.bestForNavigation,
+            distanceFilter: 1,
+          ),
+        ).listen((pos) {
+          final newLoc = LatLng(pos.latitude, pos.longitude);
 
-    if (_lastLocation != null) {
-      _distanceMoved += _distance.as(
-        LengthUnit.Meter,
-        _lastLocation!,
-        newLoc,
-      );
-    }
+          if (_lastLocation != null) {
+            _distanceMoved += _distance.as(
+              LengthUnit.Meter,
+              _lastLocation!,
+              newLoc,
+            );
+          }
 
-    _lastLocation = newLoc;
-    _currentLocation = newLoc;
+          _lastLocation = newLoc;
+          _currentLocation = newLoc;
 
-    _checkInstructionProgress();
+          _checkInstructionProgress();
+          notifyListeners();
+        });
+
     notifyListeners();
-  });
-
-  notifyListeners();
-}
-
+  }
 
   Future<void> stopNavigation() async {
     _isNavigating = false;
@@ -290,42 +343,37 @@ Future<void> startNavigation() async {
   }
 
   // ================= TURN PROGRESS =================
-void _checkInstructionProgress() {
-  if (!_isNavigating || _currentLocation == null) return;
-  if (_currentInstructionIndex >= _instructions.length) return;
+  void _checkInstructionProgress() {
+    if (!_isNavigating || _currentLocation == null) return;
+    if (_currentInstructionIndex >= _instructions.length) return;
 
-  // 🛑 Ignore first 3 seconds
-  if (_navigationStartedAt != null &&
-      DateTime.now().difference(_navigationStartedAt!).inSeconds < 3) {
-    return;
-  }
+    // 🛑 Ignore first 3 seconds
+    if (_navigationStartedAt != null &&
+        DateTime.now().difference(_navigationStartedAt!).inSeconds < 3) {
+      return;
+    }
 
-  // 🛑 Require at least 10 meters of movement
-  if (_distanceMoved < 10) return;
+    // 🛑 Require at least 10 meters of movement
+    if (_distanceMoved < 10) return;
 
-  final instr = _instructions[_currentInstructionIndex];
-  final d = _distance.as(
-    LengthUnit.Meter,
-    _currentLocation!,
-    instr.location,
-  );
+    final instr = _instructions[_currentInstructionIndex];
+    final d = _distance.as(LengthUnit.Meter, _currentLocation!, instr.location);
 
-  // 🛑 Do NOT auto-arrive on first instruction
-  if (_currentInstructionIndex == 0 && d < 15) {
-    return;
-  }
+    // 🛑 Do NOT auto-arrive on first instruction
+    if (_currentInstructionIndex == 0 && d < 15) {
+      return;
+    }
 
-  // ✅ Arrival / turn threshold
-  if (d <= 10) {
-    _currentInstructionIndex++;
+    // ✅ Arrival / turn threshold
+    if (d <= 10) {
+      _currentInstructionIndex++;
 
-    if (_currentInstructionIndex < _instructions.length) {
-      _speak(_instructions[_currentInstructionIndex].textEn);
-    } else {
-      _speak("You have arrived at your destination");
-      stopNavigation();
+      if (_currentInstructionIndex < _instructions.length) {
+        _speak(_instructions[_currentInstructionIndex].textEn);
+      } else {
+        _speak("You have arrived at your destination");
+        stopNavigation();
+      }
     }
   }
-}
-
 }
