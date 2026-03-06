@@ -29,6 +29,14 @@ dependencies:
   image_picker: ^1.0.7
   http_parser: ^4.0.2
   device_info_plus: ^10.1.0
+
+  # Motion Trace - Sensor & Background Service
+  sensors_plus: ^5.0.1
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  permission_handler: ^11.0.1
+  flutter_background_service: ^5.0.5
+  flutter_local_notifications: ^17.0.0
   
 
   # Voice

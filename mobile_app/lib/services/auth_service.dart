@@ -6,7 +6,7 @@ import 'package:http/http.dart' as http;
 class AuthService {
   // 🔁 Emulator → 10.0.2.2
   // 📱 Real device → your PC IP
-  static const String baseUrl = "http://10.0.2.2:5001/api/auth";
+  static const String baseUrl = "http://192.168.8.118:5001/api/auth";
 
   // LOGIN
   static Future<String> login({

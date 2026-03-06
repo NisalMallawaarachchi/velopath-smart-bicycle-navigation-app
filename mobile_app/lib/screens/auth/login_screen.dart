@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'signup_screen.dart';
 import '../dashboard_screen.dart';
+import '../../modules/motion_trace/providers/motion_trace_provider.dart';
 
 
 class LoginScreen extends StatefulWidget {
@@ -77,11 +79,24 @@ class _LoginScreenState extends State<LoginScreen> {
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                    onPressed: () {
+                    onPressed: () async {
+                      // Navigate to dashboard
                       Navigator.pushReplacement(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const DashboardScreen(),
+                          builder: (ctx) {
+                            // Request sensor permissions after first login
+                            Future.delayed(
+                                const Duration(milliseconds: 500), () {
+                              final motionTrace =
+                                  ctx.read<MotionTraceProvider>();
+                              if (!motionTrace.allPermissionsGranted) {
+                                motionTrace
+                                    .requestPermissionsAfterLogin(ctx);
+                              }
+                            });
+                            return const DashboardScreen();
+                          },
                         ),
                       );
                     },

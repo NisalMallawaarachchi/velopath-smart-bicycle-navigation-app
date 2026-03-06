@@ -3,6 +3,7 @@ import '../routes/app_routes.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/bottom_nav.dart';
 import '../widgets/device_helper.dart';
+import '../modules/motion_trace/widgets/tracking_card.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
@@ -30,7 +31,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final deviceId = await getDeviceId();
 
     final res = await http.get(
-      Uri.parse("http://192.168.8.191:5001/api/dashboard/$deviceId"),
+      Uri.parse("http://192.168.8.118:5001/api/dashboard/$deviceId"),
     );
 
     if (res.statusCode == 200) {
@@ -183,8 +184,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
             const SizedBox(height: 20),
 
+            // ------------- ROAD TRACKING CARD -------------
+            const TrackingCard(),
 
-            // ----------------- DASHBOARD BUTTONS -----------------
+            const SizedBox(height: 20),
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(

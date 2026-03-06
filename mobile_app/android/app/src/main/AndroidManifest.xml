@@ -4,6 +4,10 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.HIGH_SAMPLING_RATE_SENSORS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.INTERNET"/>
 
 
@@ -40,18 +44,16 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
-        <meta-data android:name="flutterEmbedding" android:value="2" />
 
-
-        <meta-data
-            android:name="com.baseflow.geolocator.forceLocationManager"
-            android:value="true" />
+        <meta-data android:name="com.baseflow.geolocator.forceLocationManager" android:value="true" />
 
         <service
             android:name="com.baseflow.geolocator.GeolocatorForegroundService"
             android:permission="android.permission.FOREGROUND_SERVICE"
             android:exported="false" />
 
+        <!-- flutter_local_notifications receiver -->
+        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
 
     </application>
     <!-- Required to query activities that can process text, see:

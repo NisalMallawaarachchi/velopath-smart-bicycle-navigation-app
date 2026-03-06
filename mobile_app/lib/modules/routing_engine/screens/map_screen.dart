@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/routing_engine_provider.dart';
+import '../../motion_trace/providers/motion_trace_provider.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -171,6 +172,17 @@ class _MapScreenState extends State<MapScreen> {
                       icon: const Icon(Icons.navigation),
                       label: const Text("Start Ride"),
                       onPressed: () async {
+                        // Prompt rider for sensor data collection consent
+                        final motionTrace =
+                            context.read<MotionTraceProvider>();
+                        if (!motionTrace.consentGiven) {
+                          await motionTrace
+                              .requestConsentAndStart(context);
+                        } else if (!motionTrace.isTracking) {
+                          await motionTrace.startTracking();
+                        }
+
+                        // Start navigation regardless of consent choice
                         await p.startNavigation();
                         if (p.currentLocation != null) {
                           _recenterSafe(p.currentLocation!, 16);
@@ -182,7 +194,15 @@ class _MapScreenState extends State<MapScreen> {
                     OutlinedButton.icon(
                       icon: const Icon(Icons.stop),
                       label: const Text("End Ride"),
-                      onPressed: p.stopNavigation,
+                      onPressed: () async {
+                        // Stop sensor tracking if active
+                        final motionTrace =
+                            context.read<MotionTraceProvider>();
+                        if (motionTrace.isTracking) {
+                          await motionTrace.stopTracking();
+                        }
+                        p.stopNavigation();
+                      },
                     ),
 
                   const SizedBox(height: 14),
