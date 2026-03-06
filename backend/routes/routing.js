@@ -396,6 +396,7 @@ router.get("/route", async (req, res) => {
 SELECT
   w.id,
   w.length_m,
+  w.name,
 
   EXISTS (
     SELECT 1
@@ -409,7 +410,12 @@ SELECT
     WHERE ST_DWithin(w.geom, p.geom, 0.0005)
   ), 0) AS poi_score,
 
-  ST_AsGeoJSON(w.geom) AS geojson,
+  ST_AsGeoJSON(
+    CASE
+      WHEN r.node = w.target THEN ST_Reverse(w.geom)
+      ELSE w.geom
+    END
+  ) AS geojson,
   r.seq
 
 FROM pgr_dijkstra(

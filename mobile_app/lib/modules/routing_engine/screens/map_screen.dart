@@ -278,74 +278,77 @@ class _MapScreenState extends State<MapScreen> {
                   ),
                 ],
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (p.isNavigating && currentInstr != null) ...[
-                    Row(
-                      children: [
-                        Icon(_instructionIcon(currentInstr.textEn),
-                            color: Colors.deepPurple),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            currentInstr.textEn,
-                            style: const TextStyle(fontWeight: FontWeight.w500),
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (p.isNavigating && currentInstr != null) ...[
+                      Row(
+                        children: [
+                          Icon(_instructionIcon(currentInstr.textEn),
+                              color: Colors.deepPurple),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              currentInstr.textEn,
+                              style: const TextStyle(fontWeight: FontWeight.w500),
+                            ),
                           ),
-                        ),
-                        Text(
-                          "(${p.currentInstructionIndex + 1}/${p.instructions.length})",
-                          style: const TextStyle(
-                              fontSize: 12, color: Colors.black54),
-                        ),
-                      ],
+                          Text(
+                            "(${p.currentInstructionIndex + 1}/${p.instructions.length})",
+                            style: const TextStyle(
+                                fontSize: 12, color: Colors.black54),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      const Divider(height: 1),
+                      const SizedBox(height: 8),
+                    ],
+                    // ---- Route Stats Row ----
+                    IntrinsicHeight(
+                      child: Row(
+                        children: [
+                          // Distance
+                          Expanded(
+                            child: _statCard(
+                              icon: Icons.straighten,
+                              iconColor: Colors.blue.shade700,
+                              label: 'Distance',
+                              value:
+                                  '${p.totalDistanceKm.toStringAsFixed(2)} km',
+                            ),
+                          ),
+                          VerticalDivider(
+                              color: Colors.deepPurple.shade100, width: 1),
+                          // Hazards
+                          Expanded(
+                            child: _statCard(
+                              icon: Icons.warning_amber_rounded,
+                              iconColor: p.totalHazards > 0
+                                  ? Colors.red.shade600
+                                  : Colors.orange.shade400,
+                              label: 'Hazards',
+                              value: '${p.totalHazards}',
+                            ),
+                          ),
+                          VerticalDivider(
+                              color: Colors.deepPurple.shade100, width: 1),
+                          // POI Score
+                          Expanded(
+                            child: _statCard(
+                              icon: Icons.local_florist_rounded,
+                              iconColor: Colors.green.shade600,
+                              label: 'Avg POI Score',
+                              value: p.avgPoiScore.toStringAsFixed(2),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 8),
-                    const Divider(height: 1),
-                    const SizedBox(height: 8),
                   ],
-                  // ---- Route Stats Row ----
-                  IntrinsicHeight(
-                    child: Row(
-                      children: [
-                        // Distance
-                        Expanded(
-                          child: _statCard(
-                            icon: Icons.straighten,
-                            iconColor: Colors.blue.shade700,
-                            label: 'Distance',
-                            value:
-                                '${p.totalDistanceKm.toStringAsFixed(2)} km',
-                          ),
-                        ),
-                        VerticalDivider(
-                            color: Colors.deepPurple.shade100, width: 1),
-                        // Hazards
-                        Expanded(
-                          child: _statCard(
-                            icon: Icons.warning_amber_rounded,
-                            iconColor: p.totalHazards > 0
-                                ? Colors.red.shade600
-                                : Colors.orange.shade400,
-                            label: 'Hazards',
-                            value: '${p.totalHazards}',
-                          ),
-                        ),
-                        VerticalDivider(
-                            color: Colors.deepPurple.shade100, width: 1),
-                        // POI Score
-                        Expanded(
-                          child: _statCard(
-                            icon: Icons.local_florist_rounded,
-                            iconColor: Colors.green.shade600,
-                            label: 'Avg POI Score',
-                            value: p.avgPoiScore.toStringAsFixed(2),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ],
