@@ -5,6 +5,7 @@ import { spawn } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
+import pool from "../config/db.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -77,7 +78,7 @@ export const predictHazard = async (req, res) => {
       stderr += data.toString();
     });
 
-    pythonProcess.on("close", (code) => {
+    pythonProcess.on("close", async (code) => {
       // Clean up temp file
       try {
         fs.unlinkSync(tempFile);
@@ -96,6 +97,10 @@ export const predictHazard = async (req, res) => {
 
       try {
         const result = JSON.parse(stdout);
+
+        // Save hazard detections to ml_detections table
+        await saveDetectionsToDB(result, req.body.deviceId);
+
         res.json(result);
       } catch (e) {
         res.status(500).json({
@@ -266,7 +271,7 @@ export const uploadLabeledData = async (req, res) => {
         stderr += data.toString();
       });
 
-      pythonProcess.on("close", (code) => {
+      pythonProcess.on("close", async (code) => {
         // Clean up temp file
         try {
           fs.unlinkSync(tempFile);
@@ -287,6 +292,10 @@ export const uploadLabeledData = async (req, res) => {
           const result = JSON.parse(stdout);
           result.mode = "predict";
           result.inputHadLabels = hasLabels;
+
+          // Save hazard detections to ml_detections table
+          await saveDetectionsToDB(result, req.body.deviceId);
+
           res.json(result);
         } catch (e) {
           res.status(500).json({
@@ -304,3 +313,44 @@ export const uploadLabeledData = async (req, res) => {
     });
   }
 };
+
+/**
+ * Save non-smooth ML predictions to ml_detections table.
+ * The DetectionProcessor cron job will pick these up and create/update hazards.
+ */
+async function saveDetectionsToDB(result, deviceId) {
+  if (!result?.success || !result?.predictions) return;
+
+  // Only save actual hazards (not smooth)
+  const hazards = result.predictions.filter(
+    (p) => p.hazard_type !== "smooth" && p.latitude && p.longitude
+  );
+
+  if (hazards.length === 0) return;
+
+  try {
+    const client = await pool.connect();
+    try {
+      for (const h of hazards) {
+        await client.query(
+          `INSERT INTO ml_detections (latitude, longitude, hazard_type, detection_confidence, device_id)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [
+            h.latitude,
+            h.longitude,
+            h.hazard_type,
+            h.confidence || 0.85,
+            deviceId || "unknown",
+          ]
+        );
+      }
+      console.log(
+        `[HazardController] Saved ${hazards.length} detections to ml_detections`
+      );
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error("[HazardController] Failed to save detections:", err.message);
+  }
+}
