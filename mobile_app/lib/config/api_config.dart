@@ -11,4 +11,7 @@ static String getComments(dynamic poiId) => "$baseUrl/api/pois/$poiId/comments";
 static String addComment(dynamic poiId) => "$baseUrl/api/pois/$poiId/comments";
 
 static const String rankedPois = "$baseUrl/api/pois/ranked";
+
+static String notifications(String deviceId) =>
+    "$baseUrl/api/pois/notifications/$deviceId";
 }
