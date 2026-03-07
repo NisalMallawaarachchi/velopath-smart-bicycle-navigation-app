@@ -212,18 +212,22 @@ class _MapScreenState extends State<MapScreen> {
                           ),
 
                           Selector<RoutingEngineProvider,
-                              (LatLng?, LatLng?, bool, LatLng?)>(
+                              (LatLng?, LatLng?, bool, LatLng?, List<MapPoi>, List<MapHazard>)>(
                             selector: (_, prov) => (
                               prov.startPoint,
                               prov.endPoint,
                               prov.isNavigating,
-                              prov.currentLocation
+                              prov.currentLocation,
+                              prov.routePois,
+                              prov.routeHazards,
                             ),
                             builder: (_, data, __) {
                               final sp = data.$1;
                               final ep = data.$2;
                               final nav = data.$3;
                               final cl = data.$4;
+                              final pois = data.$5;
+                              final hazards = data.$6;
 
                               return MarkerLayer(
                                 markers: [
@@ -253,6 +257,34 @@ class _MapScreenState extends State<MapScreen> {
                                         ),
                                       ),
                                     ),
+                                  // --- POI Markers ---
+                                  if (pois.isNotEmpty)
+                                    ...pois.map((poi) {
+                                      return Marker(
+                                        point: poi.location,
+                                        width: 40,
+                                        height: 40,
+                                        child: const Icon(
+                                          Icons.stars,
+                                          color: Colors.amber,
+                                          size: 28,
+                                        ),
+                                      );
+                                    }),
+                                  // --- Hazard Markers ---
+                                  if (hazards.isNotEmpty)
+                                    ...hazards.map((hazard) {
+                                      return Marker(
+                                        point: hazard.location,
+                                        width: 40,
+                                        height: 40,
+                                        child: const Icon(
+                                          Icons.warning_amber_rounded,
+                                          color: Colors.redAccent,
+                                          size: 28,
+                                        ),
+                                      );
+                                    }),
                                 ],
                               );
                             },
@@ -260,6 +292,53 @@ class _MapScreenState extends State<MapScreen> {
                         ],
                       ),
                     ),
+                  ),
+
+                  // ---------------- PROXIMITY ALERT BANNER ----------------
+                  Selector<RoutingEngineProvider, String?>(
+                    selector: (_, prov) => prov.currentAlertMessage,
+                    builder: (_, alertMessage, __) {
+                      if (alertMessage == null) return const SizedBox.shrink();
+                      
+                      final isHazard = alertMessage.contains("HAZARD");
+                      
+                      return Positioned(
+                        top: 10,
+                        left: 10,
+                        right: 10,
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: isHazard ? Colors.red.shade800 : Colors.teal.shade800,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: const [
+                              BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 4)),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                isHazard ? Icons.warning_rounded : Icons.star_rounded,
+                                color: Colors.white,
+                                size: 28,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  alertMessage,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),

@@ -338,58 +338,43 @@ router.get("/route", async (req, res) => {
     const endNode = e.rows[0].id;
 
     // ROUTING
+    // General mathematical structure: C(e) = w_d * Distance + w_s * HazardRisk + w_q * RoadDifficulty - w_sc * ScenicValue
 
-    let edgeSql;
+    let w_d = 1.0;
+    let w_s = 0.0;
+    let w_q = 0.0; // Currently disabled as no surface data exists in table
+    let w_sc = 0.0;
 
-    if (safeMode === "shortest") {
-      edgeSql = `
-    SELECT id, source, target,
-           length_m AS cost,
-           length_m AS reverse_cost
-    FROM routing.ways
-    WHERE source IS NOT NULL AND target IS NOT NULL
-  `;
-    } else if (safeMode === "safest") {
-      edgeSql = `
-    SELECT w.id, w.source, w.target,
-           (w.length_m + (
-             SELECT COALESCE(COUNT(*), 0) * 500 
-             FROM public.hazards h 
-             WHERE ST_DWithin(w.geom, h.location, 0.0005)
-           )) AS cost,
-           (w.length_m + (
-             SELECT COALESCE(COUNT(*), 0) * 500 
-             FROM public.hazards h 
-             WHERE ST_DWithin(w.geom, h.location, 0.0005)
-           )) AS reverse_cost
-    FROM routing.ways w
-    WHERE w.source IS NOT NULL AND w.target IS NOT NULL
-  `;
+    if (safeMode === "safest") {
+      w_d = 0.4;
+      w_s = 0.6;
     } else if (safeMode === "scenic") {
-      edgeSql = `
-    SELECT w.id, w.source, w.target,
-           GREATEST(0.1, w.length_m - COALESCE((
-             SELECT AVG(p.score) * 20
-             FROM public.custom_pois p 
-             WHERE ST_DWithin(w.geom, p.geom, 0.0005)
-           ), 0)) AS cost,
-           GREATEST(0.1, w.length_m - COALESCE((
-             SELECT AVG(p.score) * 20
-             FROM public.custom_pois p 
-             WHERE ST_DWithin(w.geom, p.geom, 0.0005)
-           ), 0)) AS reverse_cost
-    FROM routing.ways w
-    WHERE w.source IS NOT NULL AND w.target IS NOT NULL
-  `;
-    } else {
-      // balanced
-      edgeSql = `
-    SELECT id, source, target,
-           cost,
-           reverse_cost
-    FROM routing.dynamic_balanced
-  `;
-    }
+      w_d = 0.4;
+      w_sc = 0.6;
+    } else if (safeMode === "balanced") {
+      w_d = 0.4;
+      w_s = 0.3;
+      w_sc = 0.3;
+    } // else shortest (defaults above)
+
+    // Bounding Box: dynamically expand based on euclidean trip distance
+    const distDeg = Math.sqrt(Math.pow(endLon - startLon, 2) + Math.pow(endLat - startLat, 2));
+    const expandDeg = Math.max(0.05, distDeg * 0.5); // At least 5km padding, or 50% of route length
+    const bboxSql = `ST_Intersects(w.geom, ST_Expand(ST_SetSRID(ST_MakeBox2D(ST_Point(${startLon}, ${startLat}), ST_Point(${endLon}, ${endLat})), 4326), ${expandDeg}))`;
+
+    // Multiplicative Cost formula factoring in conditionally triggered map lookups to save 10+ seconds
+    let costExpr = `length_m * ${w_d}`;
+    let hazardExpr = w_s > 0 ? `(1.0 + (${w_s} * COALESCE((SELECT COUNT(*) FROM public.hazards h WHERE ST_DWithin(w.geom, h.location, 0.0005)), 0) * 10.0))` : `1.0`;
+    let scenicExpr = w_sc > 0 ? `GREATEST(0.01, 1.0 - (${w_sc} * COALESCE((SELECT SUM(p.score) FROM public.custom_pois p WHERE ST_DWithin(w.geom, p.geom, 0.001)), 0) / 5.0))` : `1.0`;
+
+    let edgeSql = `
+      SELECT id, source, target,
+        (${costExpr} * ${hazardExpr} * ${scenicExpr}) AS cost,
+        (${costExpr} * ${hazardExpr} * ${scenicExpr}) AS reverse_cost
+      FROM routing.ways w
+      WHERE source IS NOT NULL AND target IS NOT NULL
+        AND ${bboxSql}
+    `;
 
     const routeQ = await db.query(
       `
@@ -466,8 +451,16 @@ ORDER BY r.seq;
       coordinates: deduped,
     }).coordinates;
 
-    // simplify a bit to reduce visual artifacts
-    const geometry = simplifyLine(cleaned, 0.00003);
+    const geometry = [...cleaned];
+
+    // Anchor the polyline exactly to the user's requested Start and End coordinates 
+    // to prevent Flutter mapping gaps from drawing detached straight lines.
+    if (startLon && startLat) {
+       geometry.unshift([Number(startLon), Number(startLat)]);
+    }
+    if (endLon && endLat) {
+       geometry.push([Number(endLon), Number(endLat)]);
+    }
 
     // INSTRUCTIONS (merge tiny segments + better turn labels)
     const segments = mergeRouteSegments(routeQ.rows, {
@@ -478,11 +471,51 @@ ORDER BY r.seq;
 
     const instructions = generateInstructionsFromSegments(segments);
 
+    // ==========================================
+    // EXTRACT POIS & HAZARDS ALONG THE ROUTE NATIVELY
+    // ==========================================
+    let routePoisRows = [];
+    let routeHazardsRows = [];
+    
+    // Convert the exact geometry array into a PostGIS LineString for localized queries
+    if (geometry && geometry.length > 1) {
+      const lineStringWKT = `SRID=4326;LINESTRING(${geometry.map((c) => `${c[0]} ${c[1]}`).join(", ")})`;
+
+      // Fetch Top 5 POIs along this precise route
+      const routePoisQ = await db.query(
+        `
+        SELECT id, name, amenity, score, vote_count, ST_Y(geom) as lat, ST_X(geom) as lon
+        FROM public.custom_pois
+        WHERE ST_DWithin(geom, ST_GeomFromEWKT($1), 0.001) -- within ~100m
+        ORDER BY score DESC, vote_count DESC
+        LIMIT 5;
+        `,
+        [lineStringWKT]
+      );
+      routePoisRows = routePoisQ.rows;
+
+      // Fetch Top 5 Hazards along this precise route, ensuring id is cast to string and hazard_type is selected
+      const routeHazardsQ = await db.query(
+        `
+        SELECT id::text, hazard_type as type, confidence_score, ST_Y(location) as lat, ST_X(location) as lon
+        FROM public.hazards
+        WHERE ST_DWithin(location, ST_GeomFromEWKT($1), 0.0005) -- within ~50m
+          AND status IN ('pending', 'verified')
+        ORDER BY confidence_score DESC
+        LIMIT 5;
+        `,
+        [lineStringWKT]
+      );
+      routeHazardsRows = routeHazardsQ.rows;
+    }
+
     // RESPONSE
     res.json({
       mode: safeMode,
       geometry,
       instructions,
+      pois: routePoisRows,
+      hazards: routeHazardsRows,
       summary: {
         totalDistanceKm: totalMeters / 1000,
         totalHazards,

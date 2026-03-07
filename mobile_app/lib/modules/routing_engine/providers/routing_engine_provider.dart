@@ -33,6 +33,32 @@ class ColoredSegment {
   ColoredSegment({required this.points, required this.color});
 }
 
+class MapPoi {
+  final String id;
+  final String name;
+  final String amenity;
+  final LatLng location;
+
+  MapPoi({
+    required this.id,
+    required this.name,
+    required this.amenity,
+    required this.location,
+  });
+}
+
+class MapHazard {
+  final String id;
+  final String type;
+  final LatLng location;
+
+  MapHazard({
+    required this.id,
+    required this.type,
+    required this.location,
+  });
+}
+
 class RoutingEngineProvider extends ChangeNotifier {
   static const _backendBaseUrl = "http://127.0.0.1:5001";
   static const _geoapifyKey = "32bb4486a6864bbbb20904ff39d832ca";
@@ -49,6 +75,9 @@ class RoutingEngineProvider extends ChangeNotifier {
   final List<TurnInstruction> _instructions = [];
   List<ColoredSegment> _segments = [];
 
+  final List<MapPoi> _routePois = [];
+  final List<MapHazard> _routeHazards = [];
+
   final List<PlaceSuggestion> _startSuggestions = [];
   final List<PlaceSuggestion> _endSuggestions = [];
 
@@ -56,11 +85,16 @@ class RoutingEngineProvider extends ChangeNotifier {
   bool _isNavigating = false;
   bool _isSpeaking = false;
 
+  String? _currentAlertMessage;
+  final Set<String> _alertedPoiIds = {};
+  final Set<String> _alertedHazardIds = {};
+
   double _totalDistanceKm = 0;
   int _totalHazards = 0;
   double _avgPoiScore = 0.0;
 
   StreamSubscription<Position>? _posSub;
+  int _fetchRouteId = 0;
 
   // ================= GETTERS =================
   RouteProfile get activeProfile => _activeProfile;
@@ -69,8 +103,11 @@ class RoutingEngineProvider extends ChangeNotifier {
   LatLng? get currentLocation => _currentLocation;
   List<LatLng> get routePoints => _routePoints;
   List<TurnInstruction> get instructions => _instructions;
+  List<MapPoi> get routePois => _routePois;
+  List<MapHazard> get routeHazards => _routeHazards;
   int get currentInstructionIndex => _currentInstructionIndex;
   bool get isNavigating => _isNavigating;
+  String? get currentAlertMessage => _currentAlertMessage;
   double get totalDistanceKm => _totalDistanceKm;
   int get totalHazards => _totalHazards;
   double get avgPoiScore => _avgPoiScore;
@@ -210,9 +247,13 @@ class RoutingEngineProvider extends ChangeNotifier {
 
   // ================= ROUTING =================
   Future<void> _fetchRoute() async {
+    final int currentFetchId = ++_fetchRouteId;
+
     _routePoints.clear();
     _instructions.clear();
     _segments.clear();
+    _routePois.clear();
+    _routeHazards.clear();
     _currentInstructionIndex = 0;
     _totalDistanceKm = 0;
     _totalHazards = 0;
@@ -233,6 +274,12 @@ class RoutingEngineProvider extends ChangeNotifier {
       print("🌐 Fetching route from: $url");
 
       final res = await http.get(url);
+
+      // Discard stale responses if a newer fetch was initiated
+      if (currentFetchId != _fetchRouteId) {
+        print("⚠️ Discarding stale route response #$currentFetchId");
+        return;
+      }
 
       print("📡 Response status: ${res.statusCode}");
       print("📦 Response body: ${res.body}");
@@ -280,6 +327,41 @@ class RoutingEngineProvider extends ChangeNotifier {
       );
       print("✅ Created route segment");
 
+      // Process POIs
+      if (json["pois"] != null) {
+        for (final p in json["pois"]) {
+          _routePois.add(
+            MapPoi(
+              id: p["id"].toString(),
+              name: p["name"] ?? "Point of Interest",
+              amenity: p["amenity"] ?? "unknown",
+              location: LatLng(
+                (p["lat"] as num).toDouble(),
+                (p["lon"] as num).toDouble(),
+              ),
+            ),
+          );
+        }
+        print("✅ Loaded ${_routePois.length} route POIs");
+      }
+
+      // Process Hazards
+      if (json["hazards"] != null) {
+        for (final h in json["hazards"]) {
+          _routeHazards.add(
+            MapHazard(
+              id: h["id"].toString(),
+              type: h["type"] ?? "Hazard",
+              location: LatLng(
+                (h["lat"] as num).toDouble(),
+                (h["lon"] as num).toDouble(),
+              ),
+            ),
+          );
+        }
+        print("✅ Loaded ${_routeHazards.length} route Hazards");
+      }
+
       // Get summary stats
       if (json["summary"] != null) {
         final summary = json["summary"];
@@ -314,6 +396,9 @@ class RoutingEngineProvider extends ChangeNotifier {
     _navigationStartedAt = DateTime.now();
     _distanceMoved = 0;
     _lastLocation = null;
+    _currentAlertMessage = null;
+    _alertedPoiIds.clear();
+    _alertedHazardIds.clear();
 
     // Speak AFTER navigation truly starts
     await _speak("Navigation started");
@@ -340,6 +425,7 @@ class RoutingEngineProvider extends ChangeNotifier {
           _currentLocation = newLoc;
 
           _checkInstructionProgress();
+          _checkFeatureProximity();
           notifyListeners();
         });
 
@@ -387,4 +473,55 @@ class RoutingEngineProvider extends ChangeNotifier {
       }
     }
   }
+
+  // ================= FEATURE PROXIMITY CHECK =================
+  void _checkFeatureProximity() {
+    if (!_isNavigating || _currentLocation == null) return;
+
+    const double alertDistanceMeters = 30.0; // Trigger alert within 30m
+
+    // 1. Check Hazards (Priority text-to-speech)
+    for (final hazard in _routeHazards) {
+      if (_alertedHazardIds.contains(hazard.id)) continue;
+
+      final dist = _distance.as(LengthUnit.Meter, _currentLocation!, hazard.location);
+      if (dist <= alertDistanceMeters) {
+        _alertedHazardIds.add(hazard.id);
+        final titleType = hazard.type.toUpperCase();
+        _currentAlertMessage = "⚠️ HAZARD AHEAD: $titleType";
+        _speak("Caution, approaching a ${hazard.type.replaceAll('_', ' ')} hazard");
+        
+        // Clear visually after 5 seconds
+        Future.delayed(const Duration(seconds: 5), () {
+          if (_currentAlertMessage?.contains("HAZARD") == true) {
+            _currentAlertMessage = null;
+            notifyListeners();
+          }
+        });
+        return; // Don't speak over it with a POI
+      }
+    }
+
+    // 2. Check POIs
+    for (final poi in _routePois) {
+      if (_alertedPoiIds.contains(poi.id)) continue;
+
+      final dist = _distance.as(LengthUnit.Meter, _currentLocation!, poi.location);
+      if (dist <= alertDistanceMeters) {
+        _alertedPoiIds.add(poi.id);
+        _currentAlertMessage = "✨ NEARBY: ${poi.name}";
+        _speak("You are nearing ${poi.name}");
+
+        // Clear visually after 5 seconds
+        Future.delayed(const Duration(seconds: 5), () {
+          if (_currentAlertMessage?.contains("NEARBY") == true) {
+            _currentAlertMessage = null;
+            notifyListeners();
+          }
+        });
+        return;
+      }
+    }
+  }
 }
+
