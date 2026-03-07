@@ -267,33 +267,124 @@ class _MapScreenState extends State<MapScreen> {
 
             // ---------------- BOTTOM PANEL ----------------
             Container(
-              padding: const EdgeInsets.all(12),
-              color: Colors.deepPurple.shade50,
-              child: Column(
-                children: [
-                  if (p.isNavigating && currentInstr != null)
-                    Row(
-                      children: [
-                        Icon(_instructionIcon(currentInstr.textEn)),
-                        const SizedBox(width: 8),
-                        Expanded(child: Text(currentInstr.textEn)),
-                        Text(
-                          "(${p.currentInstructionIndex + 1}/${p.instructions.length})",
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  const SizedBox(height: 6),
-                  Text(
-                      "Total Distance: ${p.totalDistanceKm.toStringAsFixed(2)} km"),
-                  Text("Hazards: ${p.totalHazards}"),
-                  Text(
-                      "Avg POI Score: ${p.avgPoiScore.toStringAsFixed(2)}"),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.deepPurple.shade50,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08),
+                    blurRadius: 8,
+                    offset: const Offset(0, -2),
+                  ),
                 ],
+              ),
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (p.isNavigating && currentInstr != null) ...[
+                      Row(
+                        children: [
+                          Icon(_instructionIcon(currentInstr.textEn),
+                              color: Colors.deepPurple),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              currentInstr.textEn,
+                              style: const TextStyle(fontWeight: FontWeight.w500),
+                            ),
+                          ),
+                          Text(
+                            "(${p.currentInstructionIndex + 1}/${p.instructions.length})",
+                            style: const TextStyle(
+                                fontSize: 12, color: Colors.black54),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      const Divider(height: 1),
+                      const SizedBox(height: 8),
+                    ],
+                    // ---- Route Stats Row ----
+                    IntrinsicHeight(
+                      child: Row(
+                        children: [
+                          // Distance
+                          Expanded(
+                            child: _statCard(
+                              icon: Icons.straighten,
+                              iconColor: Colors.blue.shade700,
+                              label: 'Distance',
+                              value:
+                                  '${p.totalDistanceKm.toStringAsFixed(2)} km',
+                            ),
+                          ),
+                          VerticalDivider(
+                              color: Colors.deepPurple.shade100, width: 1),
+                          // Hazards
+                          Expanded(
+                            child: _statCard(
+                              icon: Icons.warning_amber_rounded,
+                              iconColor: p.totalHazards > 0
+                                  ? Colors.red.shade600
+                                  : Colors.orange.shade400,
+                              label: 'Hazards',
+                              value: '${p.totalHazards}',
+                            ),
+                          ),
+                          VerticalDivider(
+                              color: Colors.deepPurple.shade100, width: 1),
+                          // POI Score
+                          Expanded(
+                            child: _statCard(
+                              icon: Icons.local_florist_rounded,
+                              iconColor: Colors.green.shade600,
+                              label: 'Avg POI Score',
+                              value: p.avgPoiScore.toStringAsFixed(2),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // --------------------------------------------------
+  Widget _statCard({
+    required IconData icon,
+    required Color iconColor,
+    required String label,
+    required String value,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: iconColor, size: 20),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: iconColor,
+            ),
+          ),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 11, color: Colors.black54),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }
