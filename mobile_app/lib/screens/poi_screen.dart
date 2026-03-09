@@ -651,28 +651,109 @@ class _PoiScreenState extends State<PoiScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        if (_newTotal > 0)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            margin: const EdgeInsets.only(right: 8),
-                            decoration: BoxDecoration(
-                              color: ThemeProvider.accentCyan.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.fiber_new_rounded, size: 14, color: ThemeProvider.accentCyan),
-                                const SizedBox(width: 4),
-                                Text("$_newTotal New", style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: ThemeProvider.accentCyan)),
-                              ],
-                            ),
-                          ),
+              ],
+            ),
+          ),
+
+          // ── Row 2: Tier dropdown ──────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+            child: DropdownButtonFormField<String>(
+              value: selectedTier,
+              decoration: const InputDecoration(
+                labelText: "Quality Tier",
+                isDense: true,
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                border: OutlineInputBorder(),
+              ),
+              items: [
+                DropdownMenuItem(
+                  value: "All",
+                  child: Row(children: [
+                    const Icon(Icons.layers,
+                        size: 16, color: Colors.blueGrey),
+                    const SizedBox(width: 6),
+                    const Text("All Tiers"),
+                  ]),
+                ),
+                DropdownMenuItem(
+                  value: "new",
+                  child: Row(children: [
+                    const Icon(Icons.fiber_new_rounded,
+                        size: 16, color: Colors.blue),
+                    const SizedBox(width: 6),
+                    const Text("New (Unrated)"),
+                  ]),
+                ),
+                DropdownMenuItem(
+                  value: "high",
+                  child: Row(children: [
+                    Icon(Icons.star_rounded,
+                        size: 16, color: Colors.green[600]),
+                    const SizedBox(width: 6),
+                    const Text("High Quality"),
+                  ]),
+                ),
+                DropdownMenuItem(
+                  value: "medium",
+                  child: Row(children: [
+                    const Icon(Icons.star_half_rounded,
+                        size: 16, color: Colors.orange),
+                    const SizedBox(width: 6),
+                    const Text("Medium Quality"),
+                  ]),
+                ),
+                DropdownMenuItem(
+                  value: "low",
+                  child: Row(children: [
+                    const Icon(Icons.star_border_rounded,
+                        size: 16, color: Colors.grey),
+                    const SizedBox(width: 6),
+                    const Text("Low Quality"),
+                  ]),
+                ),
+              ],
+              onChanged: (val) {
+                if (val == null) return;
+                setState(() => selectedTier = val);
+                applyFilters();
+              },
+            ),
+          ),
+
+          // ── Row 3: Search field ───────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: "Search by type (park,cafe…)",
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8)),
+                isDense: true,
+                filled: true,
+                fillColor: Colors.white,
+              ),
+              onChanged: (val) {
+                searchQuery = val.toLowerCase();
+                applyFilters();
+              },
+            ),
+          ),
+
+          // ── Row 4: Stats badges + toggle ─── uses Wrap ───────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      if (_newTotal > 0)
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(

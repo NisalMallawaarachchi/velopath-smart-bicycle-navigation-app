@@ -176,33 +176,7 @@ class _POIsScreenState extends State<POIsScreen> {
         elevation: 0, // ensure no double shadow
         centerTitle: true,
         actions: [
-          // ── Bell icon with red badge ──
-          Stack(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.notifications_outlined, color: Colors.white),
-                onPressed: _openNotifications,
-              ),
-              if (_notificationCount > 0)
-                Positioned(
-                  right: 8,
-                  top: 8,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: Colors.redAccent,
-                      shape: BoxShape.circle,
-                    ),
-                    constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                    child: Text(
-                      _notificationCount > 99 ? "99+" : "$_notificationCount",
-                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ),
-            ],
-          ),
+          
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
             onPressed: () {

@@ -34,6 +34,9 @@ class _MainShellState extends State<MainShell> {
         children: _pages,
       ),
       bottomNavigationBar: NavigationBar(
+        labelTextStyle: MaterialStateProperty.all(
+        const TextStyle(fontSize: 12),
+        ),
         selectedIndex: _currentIndex,
         onDestinationSelected: (i) => setState(() => _currentIndex = i),
         elevation: 8,
