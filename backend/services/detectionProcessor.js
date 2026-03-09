@@ -69,14 +69,14 @@ export default class DetectionProcessor {
       SELECT 
         id, confidence_score, detection_count,
         ST_Distance(
-          location,
+          location::geography,
           ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography
         ) as distance
       FROM hazards
       WHERE hazard_type = $3
         AND status != 'expired'
         AND ST_DWithin(
-          location,
+          location::geography,
           ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography,
           $4
         )
@@ -122,7 +122,7 @@ export default class DetectionProcessor {
       INSERT INTO hazards (
         location, hazard_type, confidence_score, detection_count, last_updated
       ) VALUES (
-        ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography,
+        ST_SetSRID(ST_MakePoint($1, $2), 4326),
         $3,
         $4,
         1,

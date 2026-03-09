@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../widgets/device_helper.dart';
 import '../config/api_config.dart';
+import '../providers/theme_provider.dart';
 import 'notifications_screen.dart';
 
 class POIsScreen extends StatefulWidget {
@@ -159,52 +160,23 @@ class _POIsScreenState extends State<POIsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final textColor = isDark ? Colors.white : ThemeProvider.primaryDarkBlue;
+    final subtitleColor = isDark ? Colors.white70 : Colors.black54;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: Text(
           widget.title,
-          style: const TextStyle(
-              color: Colors.white, fontWeight: FontWeight.w600),
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, letterSpacing: 0.5),
         ),
-        backgroundColor: const Color.fromARGB(184, 5, 75, 83),
-        elevation: 0,
+        backgroundColor: ThemeProvider.primaryDarkBlue,
+        elevation: 0, // ensure no double shadow
         centerTitle: true,
         actions: [
-          // ── Bell icon with red badge ──────────────────────────────
-          Stack(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.notifications, color: Colors.white),
-                onPressed: _openNotifications,
-              ),
-              if (_notificationCount > 0)
-                Positioned(
-                  right: 6,
-                  top: 6,
-                  child: Container(
-                    padding: const EdgeInsets.all(3),
-                    decoration: const BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                    ),
-                    constraints: const BoxConstraints(
-                        minWidth: 18, minHeight: 18),
-                    child: Text(
-                      _notificationCount > 99
-                          ? "99+"
-                          : "$_notificationCount",
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ),
-            ],
-          ),
+          
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
             onPressed: () {
@@ -215,8 +187,9 @@ class _POIsScreenState extends State<POIsScreen> {
         ],
       ),
       body: loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: ThemeProvider.accentCyan))
           : RefreshIndicator(
+              color: ThemeProvider.accentCyan,
               onRefresh: fetchDashboardData,
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -224,26 +197,22 @@ class _POIsScreenState extends State<POIsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ── Loyalty Level Card ────────────────────────
+                    // ── Loyalty Level Card ──
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.all(20),
+                      padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(24),
                         gradient: const LinearGradient(
-                          colors: [
-                            Color.fromARGB(184, 5, 75, 83),
-                            Color.fromARGB(255, 6, 94, 119),
-                          ],
+                          colors: [ThemeProvider.primaryDarkBlue, Color(0xFF103A60)],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color.fromARGB(184, 5, 75, 83)
-                                .withOpacity(0.3),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
+                            color: ThemeProvider.primaryDarkBlue.withOpacity(0.3),
+                            blurRadius: 20,
+                            offset: const Offset(0, 8),
                           ),
                         ],
                       ),
@@ -251,54 +220,48 @@ class _POIsScreenState extends State<POIsScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
-                            mainAxisAlignment:
-                                MainAxisAlignment.spaceBetween,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Expanded(
                                 child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
                                       _getLevelTitle(loyaltyPoints),
                                       style: const TextStyle(
                                         color: Colors.white,
-                                        fontSize: 20,
+                                        fontSize: 22,
                                         fontWeight: FontWeight.bold,
+                                        letterSpacing: -0.5,
                                       ),
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
                                       "Loyalty Level",
                                       style: TextStyle(
-                                        color: Colors.white
-                                            .withOpacity(0.8),
-                                        fontSize: 12,
+                                        color: Colors.white.withOpacity(0.8),
+                                        fontSize: 13,
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
                               Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 8),
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.2),
-                                  borderRadius:
-                                      BorderRadius.circular(20),
+                                  color: Colors.white.withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(20),
                                 ),
                                 child: Row(
                                   children: [
-                                    const Icon(Icons.stars,
-                                        color: Color(0xFFFFD700),
-                                        size: 20),
+                                    const Icon(Icons.stars, color: Color(0xFFFFD700), size: 20),
                                     const SizedBox(width: 6),
                                     Text(
                                       "$loyaltyPoints",
                                       style: const TextStyle(
                                         color: Colors.white,
                                         fontSize: 18,
-                                        fontWeight: FontWeight.bold,
+                                        fontWeight: FontWeight.w800,
                                       ),
                                     ),
                                   ],
@@ -306,93 +269,90 @@ class _POIsScreenState extends State<POIsScreen> {
                               ),
                             ],
                           ),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 24),
                           ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(10),
                             child: LinearProgressIndicator(
                               value: _getLevelProgress(loyaltyPoints),
-                              minHeight: 8,
-                              backgroundColor:
-                                  Colors.white.withOpacity(0.3),
-                              valueColor:
-                                  const AlwaysStoppedAnimation<Color>(
-                                      Color(0xFFFFD700)),
+                              minHeight: 10,
+                              backgroundColor: Colors.white.withOpacity(0.2),
+                              valueColor: const AlwaysStoppedAnimation<Color>(ThemeProvider.accentCyan),
                             ),
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 10),
                           Text(
                             "${_getNextLevelThreshold(loyaltyPoints) - loyaltyPoints} points to ${_getNextLevelThreshold(loyaltyPoints) >= 1500 ? 'max level' : 'next level'}",
                             style: TextStyle(
                               color: Colors.white.withOpacity(0.8),
-                              fontSize: 12,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                         ],
                       ),
                     ),
 
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 28),
 
-                    // ── Contributions ─────────────────────────────
+                    // ── Contributions ──
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
                           "Your Contributions",
                           style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey.shade800,
+                            fontSize: 19,
+                            fontWeight: FontWeight.w700,
+                            color: textColor,
+                            letterSpacing: -0.3,
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
-                            color: const Color.fromARGB(184, 5, 75, 83)
-                                .withOpacity(0.1),
+                            color: ThemeProvider.accentCyan.withOpacity(0.15),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: const Text(
                             "From This Device",
                             style: TextStyle(
                               fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: Color.fromARGB(184, 5, 75, 83),
+                              fontWeight: FontWeight.w700,
+                              color: ThemeProvider.accentCyan,
+                              letterSpacing: 0.5,
                             ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 16),
 
                     Container(
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
+                        color: cardColor,
+                        borderRadius: BorderRadius.circular(20),
                         boxShadow: [
-                          BoxShadow(
-                            color: Colors.grey.withOpacity(0.1),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
+                          if (!isDark)
+                            BoxShadow(
+                              color: ThemeProvider.primaryDarkBlue.withOpacity(0.05),
+                              blurRadius: 15,
+                              offset: const Offset(0, 5),
+                            ),
                         ],
                       ),
                       child: Column(
                         children: [
                           Row(
-                            mainAxisAlignment:
-                                MainAxisAlignment.spaceBetween,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
                                     "Total POIs in System",
                                     style: TextStyle(
-                                      color: Colors.grey.shade600,
+                                      color: subtitleColor,
                                       fontSize: 14,
                                       fontWeight: FontWeight.w500,
                                     ),
@@ -400,59 +360,50 @@ class _POIsScreenState extends State<POIsScreen> {
                                   const SizedBox(height: 4),
                                   Text(
                                     "$poiCount",
-                                    style: const TextStyle(
-                                      color:
-                                          Color.fromARGB(184, 5, 75, 83),
-                                      fontSize: 32,
+                                    style: TextStyle(
+                                      color: textColor,
+                                      fontSize: 34,
                                       fontWeight: FontWeight.bold,
+                                      letterSpacing: -1,
                                     ),
                                   ),
                                 ],
                               ),
                               Container(
-                                padding: const EdgeInsets.all(12),
+                                padding: const EdgeInsets.all(14),
                                 decoration: BoxDecoration(
-                                  color: const Color.fromARGB(
-                                          184, 5, 75, 83)
-                                      .withOpacity(0.1),
-                                  borderRadius:
-                                      BorderRadius.circular(12),
+                                  color: ThemeProvider.primaryDarkBlue.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(16),
                                 ),
                                 child: const Icon(
                                   Icons.location_on,
-                                  color: Color.fromARGB(184, 5, 75, 83),
+                                  color: ThemeProvider.primaryDarkBlue,
                                   size: 32,
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 16),
-                          const Divider(),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 20),
+                          Divider(color: isDark ? Colors.white12 : Colors.grey.shade200, height: 1),
+                          const SizedBox(height: 12),
                           Row(
-                            mainAxisAlignment:
-                                MainAxisAlignment.spaceEvenly,
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             children: [
                               _buildActionLink(
                                 icon: Icons.add_circle_outline,
                                 label: "Add New",
+                                isDark: isDark,
                                 onPressed: () async {
-                                  final result =
-                                      await Navigator.pushNamed(
-                                          context, '/add-poi');
-                                  if (result == true)
-                                    fetchDashboardData();
+                                  final result = await Navigator.pushNamed(context, '/add-poi');
+                                  if (result == true) fetchDashboardData();
                                 },
                               ),
-                              Container(
-                                  height: 30,
-                                  width: 1,
-                                  color: Colors.grey.shade300),
+                              Container(height: 30, width: 1, color: isDark ? Colors.white12 : Colors.grey.shade300),
                               _buildActionLink(
-                                icon: Icons.how_to_vote,
+                                icon: Icons.how_to_vote_outlined,
                                 label: "Vote",
-                                onPressed: () => Navigator.pushNamed(
-                                    context, '/pois'),
+                                isDark: isDark,
+                                onPressed: () => Navigator.pushNamed(context, '/pois'),
                               ),
                             ],
                           ),
@@ -460,95 +411,115 @@ class _POIsScreenState extends State<POIsScreen> {
                       ),
                     ),
 
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 28),
 
                     Container(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.shade200),
+                        color: cardColor,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: isDark ? Colors.white12 : Colors.grey.shade200),
+                        boxShadow: [
+                          if (!isDark)
+                            BoxShadow(
+                              color: ThemeProvider.primaryDarkBlue.withOpacity(0.05),
+                              blurRadius: 15,
+                              offset: const Offset(0, 5),
+                            ),
+                        ],
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
                             children: [
-                              Icon(Icons.info_outline,
-                                  size: 20,
-                                  color: Colors.grey.shade700),
-                              const SizedBox(width: 8),
+                              const Icon(Icons.info_outline, size: 22, color: ThemeProvider.accentCyan),
+                              const SizedBox(width: 10),
                               Text(
                                 "How to Earn Points",
                                 style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.grey.shade800,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: textColor,
                                 ),
                               ),
                             ],
                           ),
+                          const SizedBox(height: 16),
+                          _buildPointsRule(
+                              icon: Icons.add_location_alt,
+                              text: "Add a new Point of Interest",
+                              points: "+5 points",
+                              subtitleColor: subtitleColor),
                           const SizedBox(height: 12),
                           _buildPointsRule(
-                              icon: Icons.add_location,
-                              text: "Add a new POI",
-                              points: "+5 points"),
-                          const SizedBox(height: 8),
-                          _buildPointsRule(
-                              icon: Icons.thumb_up,
-                              text: "Vote on a POI",
-                              points: "+2 points"),
+                              icon: Icons.thumb_up_alt_outlined,
+                              text: "Vote on an existing POI",
+                              points: "+2 points",
+                              subtitleColor: subtitleColor),
                         ],
                       ),
                     ),
 
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 32),
 
-                    const Text(
+                    Text(
                       "Explore The Places!",
                       style: TextStyle(
-                        color: Color(0xFF2C3E50),
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
+                        color: textColor,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.5,
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
                     Center(
-                      child: Image.asset(
-                        "assets/bicycle.gif",
-                        width: 140,
-                        height: 140,
-                        fit: BoxFit.cover,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: ThemeProvider.accentCyan.withOpacity(0.2),
+                              blurRadius: 30,
+                              spreadRadius: 5,
+                            ),
+                          ],
+                        ),
+                        child: Image.asset(
+                          "assets/bicycle.gif",
+                          width: 160,
+                          height: 160,
+                          fit: BoxFit.cover,
+                        ),
                       ),
                     ),
 
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 32),
 
                     Text(
                       "Quick Actions",
                       style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey.shade800,
+                        fontSize: 19,
+                        fontWeight: FontWeight.w700,
+                        color: textColor,
+                        letterSpacing: -0.3,
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 16),
 
                     _buildActionButton(
-                      icon: Icons.list_alt,
+                      icon: Icons.list_alt_rounded,
                       label: "View List of Places",
-                      onPressed: () =>
-                          Navigator.pushNamed(context, '/pois'),
+                      onPressed: () => Navigator.pushNamed(context, '/pois'),
                     ),
                     const SizedBox(height: 12),
                     _buildActionButton(
-                      icon: Icons.map,
+                      icon: Icons.map_outlined,
                       label: "View All POIs on Map",
-                      onPressed: () =>
-                          Navigator.pushNamed(context, '/all-pois-map'),
+                      onPressed: () => Navigator.pushNamed(context, '/all-pois-map'),
                     ),
 
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 30),
                   ],
                 ),
               ),
@@ -560,21 +531,30 @@ class _POIsScreenState extends State<POIsScreen> {
     required IconData icon,
     required String text,
     required String points,
+    required Color subtitleColor,
   }) {
     return Row(
       children: [
-        Icon(icon, size: 16, color: Colors.grey.shade600),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(text,
-              style:
-                  TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: ThemeProvider.primaryDarkBlue.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, size: 18, color: ThemeProvider.primaryDarkBlue),
         ),
-        Text(points,
-            style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF4CAF50))),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(text, style: TextStyle(fontSize: 14, color: subtitleColor, fontWeight: FontWeight.w500)),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.green.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(points, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green)),
+        ),
       ],
     );
   }
@@ -584,17 +564,28 @@ class _POIsScreenState extends State<POIsScreen> {
     required String label,
     required VoidCallback onPressed,
   }) {
-    return ElevatedButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon),
-      label: Text(label),
-      style: ElevatedButton.styleFrom(
-        minimumSize: const Size(double.infinity, 54),
-        backgroundColor: const Color.fromARGB(184, 5, 75, 83),
-        foregroundColor: Colors.white,
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12)),
+    return Container(
+      width: double.infinity,
+      height: 56,
+      decoration: BoxDecoration(
+        boxShadow: [
+          BoxShadow(
+            color: ThemeProvider.primaryDarkBlue.withOpacity(0.2),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ElevatedButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon, size: 22),
+        label: Text(label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: ThemeProvider.primaryDarkBlue,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
       ),
     );
   }
@@ -602,14 +593,17 @@ class _POIsScreenState extends State<POIsScreen> {
   Widget _buildActionLink({
     required IconData icon,
     required String label,
+    required bool isDark,
     required VoidCallback onPressed,
   }) {
     return TextButton.icon(
       onPressed: onPressed,
-      icon: Icon(icon, size: 18),
-      label: Text(label),
+      icon: Icon(icon, size: 20),
+      label: Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
       style: TextButton.styleFrom(
-          foregroundColor: const Color.fromARGB(184, 5, 75, 83)),
+        foregroundColor: isDark ? Colors.white : ThemeProvider.primaryDarkBlue,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      ),
     );
   }
 }

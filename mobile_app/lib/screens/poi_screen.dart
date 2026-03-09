@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import '../config/api_config.dart';
+import '../providers/theme_provider.dart';
 
 class PoiScreen extends StatefulWidget {
   const PoiScreen({super.key});
@@ -245,13 +246,17 @@ class _PoiScreenState extends State<PoiScreen> {
   }
 
   Widget _buildPoiCard(Map<String, dynamic> poi) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final textColor = isDark ? Colors.white : ThemeProvider.primaryDarkBlue;
+    final subtitleColor = isDark ? Colors.white70 : Colors.black54;
+
     final name      = poi['name']     ?? "Unnamed";
     final amenity   = poi['amenity']  ?? "";
     final district  = poi['district'] ?? "";
     final tier      = (poi['tier']    ?? "new").toString();
     final rawScore  = poi['adjustedScore'] ?? poi['score'] ?? 0;
     final voteCount = _parseInt(poi['vote_count']);
-    // Use vote_count as the definitive signal — not the tier string
     final isNew     = voteCount == 0;
 
     final starScore = _parseDouble(rawScore);
@@ -259,187 +264,212 @@ class _PoiScreenState extends State<PoiScreen> {
     final color = _tierColor(displayTier);
     final icon  = _tierIcon(displayTier);
 
-    return Card(
-      elevation: tier == 'high' ? 3 : tier == 'medium' ? 1.5 : 0.5,
-      margin: const EdgeInsets.only(bottom: 8),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-        side: tier == 'high'
-            ? BorderSide(color: Colors.green.withOpacity(0.4), width: 1)
-            : isNew
-                ? BorderSide(color: Colors.blue.withOpacity(0.35), width: 1)
-                : BorderSide.none,
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: isDark ? Border.all(color: Colors.white12) : Border.all(color: Colors.transparent),
+        boxShadow: [
+          if (!isDark)
+            BoxShadow(
+              color: ThemeProvider.primaryDarkBlue.withOpacity(0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          if (!isDark && tier == 'high')
+            BoxShadow(
+              color: Colors.green.withOpacity(0.1),
+              blurRadius: 12,
+              spreadRadius: 2,
+            ),
+        ],
       ),
-      child: ListTile(
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        leading: CircleAvatar(
-          backgroundColor: color.withOpacity(0.12),
-          child: Icon(icon, color: color, size: 22),
-        ),
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(
-                name,
-                style: const TextStyle(
-                    fontWeight: FontWeight.w600, fontSize: 14),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const SizedBox(width: 6),
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                isNew ? "NEW" : tier.toUpperCase(),
-                style: TextStyle(
-                    fontSize: 10,
-                    color: color,
-                    fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  "$amenity • $district",
-                  style:
-                      const TextStyle(fontSize: 12, color: Colors.black54),
-                  overflow: TextOverflow.ellipsis,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () async {
+            if (myLocation == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Please enable "Use My Location" first.')),
+              );
+              return;
+            }
+
+            final updatedPoi = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => POIMapScreen(
+                  startPoint: myLocation!,
+                  selectedPoi: poi,
+                  onLoyaltyUpdated: (points) {
+                    setState(() => loyaltyPoints += points);
+                  },
                 ),
               ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: isNew
-                      ? Colors.blue.withOpacity(0.06)
-                      : Colors.blue.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(8),
+            );
+
+            if (updatedPoi != null) {
+              setState(() {
+                final index = pois.indexWhere((p) => p['id'] == updatedPoi['id']);
+                if (index != -1) {
+                  final merged = Map<String, dynamic>.from(pois[index]);
+                  merged['score']         = updatedPoi['score']         ?? merged['score'];
+                  merged['vote_count']    = updatedPoi['vote_count']    ?? merged['vote_count'];
+                  merged['adjustedScore'] = updatedPoi['adjustedScore'] ?? merged['adjustedScore'];
+
+                  final newScore      = _parseDouble(merged['score']);
+                  final newVoteCount  = _parseInt(merged['vote_count']);
+                  merged['tier'] = _recalculateTier(newScore, newVoteCount);
+
+                  pois[index] = merged;
+                  applyFilters();
+                }
+              });
+            }
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: color, size: 24),
                 ),
-                child: isNew
-                    ? const Text(
-                        "Be the first to rate!",
-                        style: TextStyle(fontSize: 11, color: Colors.blue),
-                      )
-                    : Row(
-                        mainAxisSize: MainAxisSize.min,
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
-                          _buildStarRow(starScore),
-                          const SizedBox(width: 4),
-                          Text(
-                            "${starScore.toStringAsFixed(1)}  👥 $voteCount",
-                            style: const TextStyle(
-                                fontSize: 11, color: Colors.black54),
+                          Expanded(
+                            child: Text(
+                              name,
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                                color: textColor,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: color.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: color.withOpacity(0.3)),
+                            ),
+                            child: Text(
+                              isNew ? "NEW" : tier.toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: color,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
                           ),
                         ],
                       ),
-              ),
-            ],
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              "$amenity • $district",
+                              style: TextStyle(fontSize: 13, color: subtitleColor, fontWeight: FontWeight.w500),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: isNew ? ThemeProvider.accentCyan.withOpacity(0.1) : Colors.amber.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: isNew
+                                ? const Text(
+                                    "Be the first to rate",
+                                    style: TextStyle(fontSize: 11, color: ThemeProvider.accentCyan, fontWeight: FontWeight.bold),
+                                  )
+                                : Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      _buildStarRow(starScore),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        "${starScore.toStringAsFixed(1)} (👥 $voteCount)",
+                                        style: TextStyle(fontSize: 11, color: isDark ? Colors.white70 : Colors.black87, fontWeight: FontWeight.w600),
+                                      ),
+                                    ],
+                                  ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-        onTap: () async {
-          if (myLocation == null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                  content: Text('Please enable "Use My Location" first.')),
-            );
-            return;
-          }
-
-          final updatedPoi = await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => POIMapScreen(
-                startPoint: myLocation!,
-                selectedPoi: poi,
-                onLoyaltyUpdated: (points) {
-                  setState(() => loyaltyPoints += points);
-                },
-              ),
-            ),
-          );
-
-          if (updatedPoi != null) {
-            setState(() {
-              final index =
-                  pois.indexWhere((p) => p['id'] == updatedPoi['id']);
-              if (index != -1) {
-                final merged = Map<String, dynamic>.from(pois[index]);
-
-                // Apply updated score/vote fields from the returned POI
-                merged['score']         = updatedPoi['score']         ?? merged['score'];
-                merged['vote_count']    = updatedPoi['vote_count']    ?? merged['vote_count'];
-                merged['adjustedScore'] = updatedPoi['adjustedScore'] ?? merged['adjustedScore'];
-
-                // Recalculate tier locally so card moves to the right section immediately
-                final newScore      = _parseDouble(merged['score']);
-                final newVoteCount  = _parseInt(merged['vote_count']);
-                merged['tier'] = _recalculateTier(newScore, newVoteCount);
-
-                pois[index] = merged;
-                applyFilters(); // instantly re-sections without network call
-              }
-            });
-          }
-        },
       ),
     );
   }
 
   Widget _buildSectionHeader(String label, IconData icon, Color color) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 12, 4, 6),
+      padding: const EdgeInsets.fromLTRB(4, 16, 4, 12),
       child: Row(
         children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: 6),
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 18, color: color),
+          ),
+          const SizedBox(width: 10),
           Text(
             label,
             style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.bold,
-              color: color,
-              letterSpacing: 0.3,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: isDark ? Colors.white : ThemeProvider.primaryDarkBlue,
             ),
           ),
-          const SizedBox(width: 8),
-          Expanded(
-              child: Divider(color: color.withOpacity(0.3), thickness: 1)),
+          const SizedBox(width: 12),
+          Expanded(child: Divider(color: isDark ? Colors.white12 : Colors.grey.shade300, thickness: 1.5)),
         ],
       ),
     );
   }
 
   List<Widget> _buildSectionedList() {
-    // Section split is driven by vote_count, not the tier string
-    final ranked =
-        filteredPois.where((p) => _parseInt(p['vote_count']) > 0).toList();
-    final newPois =
-        filteredPois.where((p) => _parseInt(p['vote_count']) == 0).toList();
+    final ranked = filteredPois.where((p) => _parseInt(p['vote_count']) > 0).toList();
+    final newPois = filteredPois.where((p) => _parseInt(p['vote_count']) == 0).toList();
 
     final items = <Widget>[];
 
     if (ranked.isNotEmpty) {
-      items.add(_buildSectionHeader(
-          "Rated Places", Icons.star_rounded, Colors.orange));
+      items.add(_buildSectionHeader("Rated Places", Icons.star_rounded, Colors.orange));
       for (final poi in ranked) {
         items.add(_buildPoiCard(Map<String, dynamic>.from(poi)));
       }
     }
 
     if (newPois.isNotEmpty) {
-      items.add(_buildSectionHeader(
-          "New Places", Icons.fiber_new_rounded, Colors.blue));
+      items.add(_buildSectionHeader("New Unrated Places", Icons.fiber_new_rounded, ThemeProvider.accentCyan));
       for (final poi in newPois) {
         items.add(_buildPoiCard(Map<String, dynamic>.from(poi)));
       }
@@ -448,84 +478,178 @@ class _PoiScreenState extends State<PoiScreen> {
     return items;
   }
 
-  int get _lowQualityTotal =>
-      pois.where((p) => (p['tier'] ?? 'new') == 'low').length;
+  int get _lowQualityTotal => pois.where((p) => (p['tier'] ?? 'new') == 'low').length;
 
-  int get _newTotal =>
-      pois.where((p) => _parseInt(p['vote_count']) == 0).length;
+  int get _newTotal => pois.where((p) => _parseInt(p['vote_count']) == 0).length;
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
+    final inputBgColor = isDark ? const Color(0xFF1E293B) : Colors.white;
+
     return Scaffold(
-      backgroundColor: Colors.grey[100],
+      backgroundColor: bgColor,
       appBar: AppBar(
-        backgroundColor: const Color.fromARGB(255, 30, 128, 176),
         title: const Text(
           "Places to visit",
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
         ),
+        backgroundColor: ThemeProvider.primaryDarkBlue,
         centerTitle: true,
+        elevation: 0,
       ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: const Color.fromARGB(255, 18, 96, 145),
-        child: const Icon(Icons.add_location_alt),
-        onPressed: () async {
-          final added = await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const AddPOIScreen()),
-          );
-          if (added == true) fetchPOIs();
-        },
+      floatingActionButton: Container(
+        decoration: BoxDecoration(
+          boxShadow: [
+            if (!isDark)
+              BoxShadow(
+                color: ThemeProvider.accentCyan.withOpacity(0.4),
+                blurRadius: 15,
+                offset: const Offset(0, 6),
+              ),
+          ],
+          borderRadius: BorderRadius.circular(30),
+        ),
+        child: FloatingActionButton.extended(
+          backgroundColor: ThemeProvider.accentCyan,
+          icon: const Icon(Icons.add_location_alt, color: ThemeProvider.primaryDarkBlue),
+          label: const Text("Add POI", style: TextStyle(color: ThemeProvider.primaryDarkBlue, fontWeight: FontWeight.bold)),
+          onPressed: () async {
+            final added = await Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const AddPOIScreen()),
+            );
+            if (added == true) fetchPOIs();
+          },
+        ),
       ),
       body: Column(
         children: [
-          // ── Row 1: District dropdown + Location button ────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-            child: Row(
+          // ── Minimalist Filter Section ──
+          Container(
+            padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 8),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF151E2E) : Colors.white,
+              boxShadow: [
+                if (!isDark)
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.08),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+              ],
+            ),
+            child: Column(
               children: [
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: selectedDistrict,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: "District",
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 10),
-                      border: OutlineInputBorder(),
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: inputBgColor,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: isDark ? Colors.white12 : Colors.grey.shade200),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: selectedDistrict,
+                            isExpanded: true,
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            dropdownColor: inputBgColor,
+                            icon: const Icon(Icons.keyboard_arrow_down, color: Colors.grey),
+                            items: [
+                              "All", "Colombo", "Gampaha", "Kalutara", "Kandy",
+                              "Matale", "Nuwara Eliya", "Galle", "Matara",
+                              "Hambantota", "Jaffna", "Kilinochchi", "Mannar",
+                              "Vavuniya", "Mullaitivu", "Batticaloa", "Ampara",
+                              "Trincomalee", "Kurunegala", "Puttalam", "Anuradhapura",
+                              "Polonnaruwa", "Badulla", "Monaragala", "Ratnapura",
+                              "Kegalle",
+                            ].map((d) => DropdownMenuItem(value: d, child: Text(d, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87), overflow: TextOverflow.ellipsis))).toList(),
+                            onChanged: (val) {
+                              if (val == null) return;
+                              setState(() => selectedDistrict = val);
+                              fetchPOIs();
+                            },
+                          ),
+                        ),
+                      ),
                     ),
-                    items: [
-                      "All", "Colombo", "Gampaha", "Kalutara", "Kandy",
-                      "Matale", "Nuwara Eliya", "Galle", "Matara",
-                      "Hambantota", "Jaffna", "Kilinochchi", "Mannar",
-                      "Vavuniya", "Mullaitivu", "Batticaloa", "Ampara",
-                      "Trincomalee", "Kurunegala", "Puttalam", "Anuradhapura",
-                      "Polonnaruwa", "Badulla", "Monaragala", "Ratnapura",
-                      "Kegalle",
-                    ]
-                        .map((d) => DropdownMenuItem(
-                            value: d,
-                            child: Text(d,
-                                overflow: TextOverflow.ellipsis)))
-                        .toList(),
-                    onChanged: (val) {
-                      if (val == null) return;
-                      setState(() => selectedDistrict = val);
-                      fetchPOIs();
-                    },
-                  ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: inputBgColor,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: isDark ? Colors.white12 : Colors.grey.shade200),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: selectedTier,
+                            isExpanded: true,
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            dropdownColor: inputBgColor,
+                            icon: const Icon(Icons.keyboard_arrow_down, color: Colors.grey),
+                            items: [
+                              DropdownMenuItem(value: "All", child: Text("All Tiers", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87))),
+                              DropdownMenuItem(value: "new", child: Text("New", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.blue))),
+                              DropdownMenuItem(value: "high", child: Text("High", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.green))),
+                              DropdownMenuItem(value: "medium", child: Text("Medium", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.orange))),
+                              DropdownMenuItem(value: "low", child: Text("Low", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey))),
+                            ],
+                            onChanged: (val) {
+                              if (val == null) return;
+                              setState(() => selectedTier = val);
+                              applyFilters();
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.my_location, size: 16),
-                  label: const Text("My Location",
-                      style: TextStyle(fontSize: 12)),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 10),
-                  ),
-                  onPressed: () => getMyLocation(silent: false),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: inputBgColor,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: isDark ? Colors.white12 : Colors.grey.shade200),
+                        ),
+                        child: TextField(
+                          decoration: const InputDecoration(
+                            hintText: "Search type (e.g. cafe, repair)",
+                            hintStyle: TextStyle(fontSize: 14, color: Colors.grey),
+                            prefixIcon: Icon(Icons.search, color: Colors.grey),
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.symmetric(vertical: 14),
+                          ),
+                          style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                          onChanged: (val) {
+                            searchQuery = val.toLowerCase();
+                            applyFilters();
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: ThemeProvider.primaryDarkBlue.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: IconButton(
+                        icon: const Icon(Icons.my_location, color: ThemeProvider.primaryDarkBlue),
+                        onPressed: () => getMyLocation(silent: false),
+                        tooltip: "Near Me",
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -603,7 +727,7 @@ class _PoiScreenState extends State<PoiScreen> {
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
             child: TextField(
               decoration: InputDecoration(
-                hintText: "Search by type (hospital, school…)",
+                hintText: "Search by type (park,cafe…)",
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8)),
@@ -631,127 +755,83 @@ class _PoiScreenState extends State<PoiScreen> {
                     children: [
                       if (_newTotal > 0)
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: Colors.blue[50],
-                            borderRadius: BorderRadius.circular(12),
+                            color: isDark ? Colors.white12 : Colors.grey.shade200,
+                            borderRadius: BorderRadius.circular(20),
                           ),
                           child: Row(
-                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.fiber_new_rounded,
-                                  size: 13, color: Colors.blue),
-                              const SizedBox(width: 3),
-                              Text(
-                                "$_newTotal new",
-                                style: const TextStyle(
-                                    fontSize: 11, color: Colors.blue),
-                              ),
+                              Icon(Icons.visibility_off, size: 14, color: isDark ? Colors.grey.shade400 : Colors.grey.shade700),
+                              const SizedBox(width: 4),
+                              Text("$_lowQualityTotal low hidden", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: isDark ? Colors.grey.shade400 : Colors.grey.shade700)),
                             ],
                           ),
                         ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[200],
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.visibility_off,
-                                size: 13, color: Colors.grey[600]),
-                            const SizedBox(width: 3),
-                            Text(
-                              "$_lowQualityTotal low hidden",
-                              style: TextStyle(
-                                  fontSize: 11, color: Colors.grey[600]),
-                            ),
-                          ],
-                        ),
+                      ],
+                    ),
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
-                    ],
-                  ),
-                ),
-                TextButton.icon(
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 4),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  icon: Icon(
-                    showLowQuality
-                        ? Icons.visibility_off
-                        : Icons.visibility,
-                    size: 15,
-                    color: Colors.blueGrey,
-                  ),
-                  label: Text(
-                    showLowQuality ? "Hide low" : "Show all",
-                    style: const TextStyle(
-                        fontSize: 12, color: Colors.blueGrey),
-                  ),
-                  onPressed: () {
-                    setState(() => showLowQuality = !showLowQuality);
-                    applyFilters();
-                  },
+                      onPressed: () {
+                        setState(() => showLowQuality = !showLowQuality);
+                        applyFilters();
+                      },
+                      child: Text(
+                        showLowQuality ? "Hide Low" : "Show All",
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: ThemeProvider.primaryDarkBlue),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
 
-          // ── Result count ──────────────────────────────────────────
           if (!isLoading)
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  "${filteredPois.length} place${filteredPois.length == 1 ? '' : 's'} found"
-                  "${selectedDistrict != 'All' ? ' in $selectedDistrict' : ''}",
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  "${filteredPois.length} place${filteredPois.length == 1 ? '' : 's'} found",
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: isDark ? Colors.white54 : Colors.grey.shade600),
                 ),
               ),
             ),
 
-          // ── POI list ──────────────────────────────────────────────
           Expanded(
             child: isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(
-                        color: Color.fromARGB(255, 21, 98, 153)))
+                ? const Center(child: CircularProgressIndicator(color: ThemeProvider.accentCyan))
                 : filteredPois.isEmpty
                     ? Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.location_off,
-                                size: 48, color: Colors.grey[400]),
-                            const SizedBox(height: 8),
+                            Icon(Icons.search_off_rounded, size: 64, color: isDark ? Colors.white24 : Colors.grey.shade300),
+                            const SizedBox(height: 16),
                             Text(
-                              selectedDistrict != "All"
-                                  ? "No POIs found in $selectedDistrict."
-                                  : "No POIs found.",
-                              style: TextStyle(color: Colors.grey[500]),
+                              "No POIs found.",
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: isDark ? Colors.white54 : Colors.grey.shade500),
                             ),
-                            if (!showLowQuality && _lowQualityTotal > 0)
+                            if (!showLowQuality && _lowQualityTotal > 0) ...[
+                              const SizedBox(height: 12),
                               TextButton(
                                 onPressed: () {
                                   setState(() => showLowQuality = true);
                                   applyFilters();
                                 },
-                                child: const Text(
-                                    "Show low quality POIs too?"),
+                                child: const Text("Show low quality POIs too?", style: TextStyle(color: ThemeProvider.primaryDarkBlue, fontWeight: FontWeight.bold)),
                               ),
+                            ]
                           ],
                         ),
                       )
                     : ListView(
-                        padding:
-                            const EdgeInsets.fromLTRB(12, 0, 12, 80),
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
                         children: _buildSectionedList(),
                       ),
           ),

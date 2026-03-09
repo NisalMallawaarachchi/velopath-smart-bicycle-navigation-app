@@ -1,3 +1,4 @@
+//routing_engine_provider.dart
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ui' show Color;
@@ -8,6 +9,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
+import 'package:mobile_app/config/api_config.dart';
 
 enum RouteProfile { shortest, safest, scenic, balanced }
 
@@ -60,7 +62,7 @@ class MapHazard {
 }
 
 class RoutingEngineProvider extends ChangeNotifier {
-  static const _backendBaseUrl = "http://127.0.0.1:5001";
+  static String get _backendBaseUrl => ApiConfig.baseUrl;
   static const _geoapifyKey = "32bb4486a6864bbbb20904ff39d832ca";
 
   final FlutterTts _tts = FlutterTts();
@@ -311,7 +313,10 @@ class RoutingEngineProvider extends ChangeNotifier {
           _instructions.add(
             TurnInstruction(
               textEn: i["textEn"],
-              location: LatLng(i["lat"], i["lon"]),
+              location: LatLng(
+                (i["lat"] as num).toDouble(),
+                (i["lon"] as num).toDouble(),
+              ),
             ),
           );
         }
@@ -444,25 +449,25 @@ class RoutingEngineProvider extends ChangeNotifier {
     if (!_isNavigating || _currentLocation == null) return;
     if (_currentInstructionIndex >= _instructions.length) return;
 
-    // 🛑 Ignore first 3 seconds
-    if (_navigationStartedAt != null &&
-        DateTime.now().difference(_navigationStartedAt!).inSeconds < 3) {
-      return;
-    }
-
-    // 🛑 Require at least 10 meters of movement
-    if (_distanceMoved < 10) return;
+    // 🛑 Require at least 5 meters of movement to avoid jitter triggering turns
+    if (_distanceMoved < 5 && _currentInstructionIndex > 0) return;
 
     final instr = _instructions[_currentInstructionIndex];
     final d = _distance.as(LengthUnit.Meter, _currentLocation!, instr.location);
 
-    // 🛑 Do NOT auto-arrive on first instruction
-    if (_currentInstructionIndex == 0 && d < 15) {
+    // Initial instruction (e.g. "Start riding")
+    if (_currentInstructionIndex == 0) {
+      // Just progress past the trivial first instruction immediately to announce the first real turn
+      _currentInstructionIndex++;
+      if (_currentInstructionIndex < _instructions.length) {
+        final nextInstr = _instructions[_currentInstructionIndex];
+        _speak("Next, ${nextInstr.textEn}");
+      }
       return;
     }
 
-    // ✅ Arrival / turn threshold
-    if (d <= 10) {
+    // ✅ Arrival / turn threshold (relaxed to 30 meters)
+    if (d <= 30) {
       _currentInstructionIndex++;
 
       if (_currentInstructionIndex < _instructions.length) {
@@ -524,4 +529,5 @@ class RoutingEngineProvider extends ChangeNotifier {
     }
   }
 }
+
 
