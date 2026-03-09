@@ -1,164 +1,19 @@
-import 'dart:async';
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import '../widgets/device_helper.dart';
-import '../config/api_config.dart';
-import '../providers/theme_provider.dart';
-import 'notifications_screen.dart';
+import re
+import sys
 
-class POIsScreen extends StatefulWidget {
-  final String title;
-  const POIsScreen({super.key, this.title = "Dashboard"});
+# Read the file
+with open("mobile_app/lib/screens/view_poi_screen.dart", "r", encoding="utf-8") as f:
+    content = f.read()
 
-  @override
-  State<POIsScreen> createState() => _POIsScreenState();
-}
+# Match everything from "  @override\\n  Widget build(BuildContext context) {" to the end of the file
+pattern = re.compile(r"  @override\n  Widget build\(BuildContext context\) \{.*", re.DOTALL)
+match = pattern.search(content)
 
-class _POIsScreenState extends State<POIsScreen> {
-  int poiCount = 0;
-  int loyaltyPoints = 0;
-  int userPOIsAdded = 0;
-  int userVotes = 0;
-  bool loading = true;
+if not match:
+    print("Could not find build function.")
+    sys.exit(1)
 
-  // Notification state
-  int _notificationCount = 0;
-  String? _lastCheckedAt;
-  Timer? _notificationTimer;
-
-  @override
-  void initState() {
-    super.initState();
-    fetchDashboardData();
-    _startNotificationPolling();
-  }
-
-  @override
-  void dispose() {
-    _notificationTimer?.cancel();
-    super.dispose();
-  }
-
-  // ── Poll every 30 seconds ─────────────────────────────────────────────────
-  void _startNotificationPolling() {
-    _checkNewNotifications();
-    _notificationTimer = Timer.periodic(
-      const Duration(seconds: 30),
-      (_) => _checkNewNotifications(),
-    );
-  }
-
-  Future<void> _checkNewNotifications() async {
-    try {
-      final deviceId = await getDeviceId();
-
-      String url = ApiConfig.notifications(deviceId);
-      if (_lastCheckedAt != null) {
-        url += "?since=${Uri.encodeComponent(_lastCheckedAt!)}";
-      }
-
-      final response = await http.get(Uri.parse(url));
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final int newCount = data['count'] ?? 0;
-
-        if (newCount > 0 && _lastCheckedAt != null) {
-          // Play the device's built-in click/alert sound — no file needed
-          SystemSound.play(SystemSoundType.alert);
-
-          if (mounted) {
-            setState(() => _notificationCount += newCount);
-          }
-        }
-
-        _lastCheckedAt = DateTime.now().toUtc().toIso8601String();
-      }
-    } catch (e) {
-      debugPrint("Notification check error: $e");
-    }
-  }
-
-  void _openNotifications() async {
-    setState(() => _notificationCount = 0);
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const NotificationsScreen()),
-    );
-  }
-
-  // ── Dashboard data ─────────────────────────────────────────────────────────
-  Future<void> fetchDashboardData() async {
-    try {
-      final deviceId = await getDeviceId();
-      final response =
-          await http.get(Uri.parse(ApiConfig.dashboard(deviceId)));
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        setState(() {
-          poiCount      = data["poiCount"]      ?? 0;
-          loyaltyPoints = data["loyaltyPoints"] ?? 0;
-          userPOIsAdded = data["userPOIsAdded"] ?? 0;
-          userVotes     = data["userVotes"]     ?? 0;
-          loading       = false;
-        });
-      } else {
-        throw Exception("Failed to load dashboard data");
-      }
-    } catch (e) {
-      debugPrint("Dashboard fetch error: $e");
-      setState(() => loading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Error loading dashboard: $e"),
-            backgroundColor: Colors.red.shade400,
-          ),
-        );
-      }
-    }
-  }
-
-  String _getLevelTitle(int points) {
-    if (points >= 1000) return "🏆 Legend";
-    if (points >= 500)  return "💎 Diamond Explorer";
-    if (points >= 250)  return "🌟 Gold Adventurer";
-    if (points >= 100)  return "🎯 Silver Rider";
-    if (points >= 50)   return "🚀 Bronze Pathfinder";
-    return "🌱 Beginner";
-  }
-
-  int _getNextLevelThreshold(int points) {
-    if (points >= 1000) return 1500;
-    if (points >= 500)  return 1000;
-    if (points >= 250)  return 500;
-    if (points >= 100)  return 250;
-    if (points >= 50)   return 100;
-    return 50;
-  }
-
-  int _getCurrentLevelThreshold(int points) {
-    if (points >= 1000) return 1000;
-    if (points >= 500)  return 500;
-    if (points >= 250)  return 250;
-    if (points >= 100)  return 100;
-    if (points >= 50)   return 50;
-    return 0;
-  }
-
-  double _getLevelProgress(int points) {
-    final currentThreshold = _getCurrentLevelThreshold(points);
-    final nextThreshold    = _getNextLevelThreshold(points);
-    if (nextThreshold == currentThreshold) return 0.0;
-    return ((points - currentThreshold) /
-            (nextThreshold - currentThreshold))
-        .clamp(0.0, 1.0);
-  }
-
-  @override
+new_code = """  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
@@ -173,7 +28,7 @@ class _POIsScreenState extends State<POIsScreen> {
           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, letterSpacing: 0.5),
         ),
         backgroundColor: ThemeProvider.primaryDarkBlue,
-        elevation: 0, // ensure no double shadow
+        elevation: 0,
         centerTitle: true,
         actions: [
           // ── Bell icon with red badge ──
@@ -633,3 +488,10 @@ class _POIsScreenState extends State<POIsScreen> {
     );
   }
 }
+"""
+
+new_content = content[:match.start()] + new_code
+with open("mobile_app/lib/screens/view_poi_screen.dart", "w", encoding="utf-8") as f:
+    f.write(new_content)
+    
+print("Successfully replaced.")

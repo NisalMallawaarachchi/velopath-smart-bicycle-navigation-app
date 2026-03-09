@@ -1,251 +1,19 @@
-import 'dart:math' as math;
-import 'package:flutter/material.dart';
-import 'package:mobile_app/screens/poi_map_screen.dart';
-import 'package:mobile_app/screens/add_poi_screen.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:geolocator/geolocator.dart';
-import 'package:latlong2/latlong.dart';
-import '../config/api_config.dart';
-import '../providers/theme_provider.dart';
+const fs = require('fs');
 
-class PoiScreen extends StatefulWidget {
-  const PoiScreen({super.key});
+const path = 'mobile_app/lib/screens/poi_screen.dart';
+let content = fs.readFileSync(path, 'utf-8').replace(/\r\n/g, '\n');
 
-  @override
-  State<PoiScreen> createState() => _PoiScreenState();
+if (!content.includes("import '../providers/theme_provider.dart';")) {
+  content = content.replace("import '../config/api_config.dart';", "import '../config/api_config.dart';\nimport '../providers/theme_provider.dart';");
 }
 
-class _PoiScreenState extends State<PoiScreen> {
-  List<dynamic> pois = [];
-  List<dynamic> filteredPois = [];
-  bool isLoading = true;
-  int loyaltyPoints = 0;
+let startIndex = content.indexOf('  Widget _buildPoiCard(Map<String, dynamic> poi) {');
+if (startIndex === -1) {
+    console.error('Could not find _buildPoiCard function');
+    process.exit(1);
+}
 
-  String selectedDistrict = "All";
-  String selectedTier = "All";
-  String searchQuery = "";
-  bool showLowQuality = false;
-
-  LatLng? myLocation;
-  final double displayRadiusKm = 5.0;
-  final Distance distance = const Distance();
-
-  @override
-  void initState() {
-    super.initState();
-    initAll();
-  }
-
-  Future<void> initAll() async {
-    await getMyLocation(silent: true);
-    await fetchPOIs();
-  }
-
-  Future<void> fetchPOIs() async {
-    if (mounted) setState(() => isLoading = true);
-
-    final districtParam = selectedDistrict != "All"
-        ? "?district=${Uri.encodeComponent(selectedDistrict)}"
-        : "";
-    final url = "${ApiConfig.rankedPois}$districtParam";
-
-    try {
-      final response = await http.get(Uri.parse(url));
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        pois = List<dynamic>.from(data['pois']);
-        for (var poi in pois) {
-          poi['district'] ??= "Other";
-          poi['tier'] ??= "new";
-        }
-        applyFilters();
-      } else {
-        throw Exception('Failed to load POIs (status ${response.statusCode})');
-      }
-    } catch (e) {
-      debugPrint("Error fetching POIs: $e");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error fetching POIs: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => isLoading = false);
-    }
-  }
-
-  /// Mirrors the backend qualityTier logic.
-  /// Returns "new" if no votes, otherwise "high"/"medium"/"low".
-  String _recalculateTier(double score, int voteCount) {
-    if (voteCount == 0) return "new";
-    final normalizedScore = (score / 5) * 100;
-    final scorePart = normalizedScore * 0.7;
-    final votePart = math.log(1 + voteCount) * (30 / math.log(101));
-    final qs = (scorePart + votePart).clamp(0.0, 100.0);
-    if (qs >= 65) return "high";
-    if (qs >= 35) return "medium";
-    return "low";
-  }
-
-  void applyFilters() {
-    final q = searchQuery.toLowerCase();
-
-    final filtered = pois.where((poi) {
-      final amenity   = (poi['amenity'] ?? "").toString().toLowerCase();
-      final name      = (poi['name']    ?? "").toString().toLowerCase();
-      final tier      = (poi['tier']    ?? "new").toString();
-      final voteCount = _parseInt(poi['vote_count']);
-
-      final matchesSearch = amenity.contains(q) || name.contains(q);
-
-      // Filter by tier — "new" means strictly zero votes
-      bool matchesTierFilter;
-      if (selectedTier == "All") {
-        matchesTierFilter = true;
-      } else if (selectedTier == "new") {
-        matchesTierFilter = voteCount == 0; // only genuinely unvoted POIs
-      } else {
-        matchesTierFilter = voteCount > 0 && tier == selectedTier;
-      }
-
-      // Unvoted POIs are always shown; low-tier POIs respect the toggle
-      final matchesVisibility =
-          voteCount == 0 || showLowQuality || tier != "low";
-
-      bool matchesProximity = true;
-      if (myLocation != null && selectedDistrict == "All") {
-        final latRaw = poi['lat'];
-        final lonRaw = poi['lon'];
-        double? poiLat;
-        double? poiLon;
-        if (latRaw is String) poiLat = double.tryParse(latRaw);
-        if (lonRaw is String) poiLon = double.tryParse(lonRaw);
-        if (latRaw is num) poiLat = latRaw.toDouble();
-        if (lonRaw is num) poiLon = lonRaw.toDouble();
-        if (poiLat != null && poiLon != null) {
-          final distKm =
-              distance(LatLng(poiLat, poiLon), myLocation!) / 1000.0;
-          matchesProximity = distKm <= displayRadiusKm;
-        } else {
-          matchesProximity = false;
-        }
-      }
-
-      return matchesSearch &&
-          matchesTierFilter &&
-          matchesVisibility &&
-          matchesProximity;
-    }).toList();
-
-    if (!mounted) return;
-    setState(() => filteredPois = filtered);
-  }
-
-  int _parseInt(dynamic v) {
-    if (v == null) return 0;
-    if (v is int) return v;
-    if (v is double) return v.toInt();
-    if (v is String) return int.tryParse(v) ?? 0;
-    return 0;
-  }
-
-  double _parseDouble(dynamic v) {
-    if (v == null) return 0.0;
-    if (v is double) return v;
-    if (v is int) return v.toDouble();
-    if (v is String) return double.tryParse(v) ?? 0.0;
-    return 0.0;
-  }
-
-  Future<void> getMyLocation({bool silent = false}) async {
-    try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        if (!silent && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Location services are disabled.')),
-          );
-        }
-        return;
-      }
-
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          if (!silent && mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Location permission denied.')),
-            );
-          }
-          return;
-        }
-      }
-
-      if (permission == LocationPermission.deniedForever) {
-        if (!silent && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('Location permissions are permanently denied.')),
-          );
-        }
-        return;
-      }
-
-      final position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.best);
-      if (!mounted) return;
-      setState(
-          () => myLocation = LatLng(position.latitude, position.longitude));
-      applyFilters();
-    } catch (e) {
-      debugPrint("Error getting location: $e");
-      if (!silent && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error getting location: $e')),
-        );
-      }
-    }
-  }
-
-  Color _tierColor(String tier) {
-    switch (tier) {
-      case 'high':   return Colors.green;
-      case 'medium': return Colors.orange;
-      case 'new':    return Colors.blue;
-      default:       return Colors.grey;
-    }
-  }
-
-  IconData _tierIcon(String tier) {
-    switch (tier) {
-      case 'high':   return Icons.star_rounded;
-      case 'medium': return Icons.star_half_rounded;
-      case 'new':    return Icons.fiber_new_rounded;
-      default:       return Icons.star_border_rounded;
-    }
-  }
-
-  Widget _buildStarRow(double score) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(5, (index) {
-        final starValue = index + 1;
-        IconData icon;
-        if (starValue <= score) {
-          icon = Icons.star_rounded;
-        } else if (starValue - 0.5 <= score) {
-          icon = Icons.star_half_rounded;
-        } else {
-          icon = Icons.star_border_rounded;
-        }
-        return Icon(icon, color: Colors.amber, size: 14);
-      }),
-    );
-  }
-
-  Widget _buildPoiCard(Map<String, dynamic> poi) {
+const newCode = `  Widget _buildPoiCard(Map<String, dynamic> poi) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
     final textColor = isDark ? Colors.white : ThemeProvider.primaryDarkBlue;
@@ -384,7 +152,7 @@ class _PoiScreenState extends State<PoiScreen> {
                         children: [
                           Expanded(
                             child: Text(
-                              "$amenity • $district",
+                              "\${amenity} • \${district}",
                               style: TextStyle(fontSize: 13, color: subtitleColor, fontWeight: FontWeight.w500),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -406,7 +174,7 @@ class _PoiScreenState extends State<PoiScreen> {
                                       _buildStarRow(starScore),
                                       const SizedBox(width: 6),
                                       Text(
-                                        "${starScore.toStringAsFixed(1)} (👥 $voteCount)",
+                                        "\${starScore.toStringAsFixed(1)} (👥 \${voteCount})",
                                         style: TextStyle(fontSize: 11, color: isDark ? Colors.white70 : Colors.black87, fontWeight: FontWeight.w600),
                                       ),
                                     ],
@@ -669,7 +437,7 @@ class _PoiScreenState extends State<PoiScreen> {
                               children: [
                                 const Icon(Icons.fiber_new_rounded, size: 14, color: ThemeProvider.accentCyan),
                                 const SizedBox(width: 4),
-                                Text("$_newTotal New", style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: ThemeProvider.accentCyan)),
+                                Text("\${_newTotal} New", style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: ThemeProvider.accentCyan)),
                               ],
                             ),
                           ),
@@ -683,7 +451,7 @@ class _PoiScreenState extends State<PoiScreen> {
                             children: [
                               Icon(Icons.visibility_off, size: 14, color: isDark ? Colors.grey.shade400 : Colors.grey.shade700),
                               const SizedBox(width: 4),
-                              Text("$_lowQualityTotal low hidden", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: isDark ? Colors.grey.shade400 : Colors.grey.shade700)),
+                              Text("\${_lowQualityTotal} low hidden", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: isDark ? Colors.grey.shade400 : Colors.grey.shade700)),
                             ],
                           ),
                         ),
@@ -716,7 +484,7 @@ class _PoiScreenState extends State<PoiScreen> {
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  "${filteredPois.length} place${filteredPois.length == 1 ? '' : 's'} found",
+                  "\${filteredPois.length} place\${filteredPois.length == 1 ? '' : 's'} found",
                   style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: isDark ? Colors.white54 : Colors.grey.shade600),
                 ),
               ),
@@ -759,3 +527,8 @@ class _PoiScreenState extends State<PoiScreen> {
     );
   }
 }
+`;
+
+content = content.substring(0, startIndex) + newCode;
+fs.writeFileSync(path, content, 'utf-8');
+console.log('Successfully replaced POI Screen UI.');

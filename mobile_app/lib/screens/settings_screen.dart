@@ -11,13 +11,14 @@ class SettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final cardColor = isDark ? const Color(0xFF1E1E2E) : Colors.white;
-    final subtitleColor = isDark ? Colors.grey.shade400 : Colors.grey.shade600;
+    final cardColor = theme.cardColor;
+    final subtitleColor = isDark ? Colors.white60 : Colors.grey.shade600;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Settings"),
+        title: Text("Settings", style: TextStyle(fontWeight: FontWeight.w700, color: isDark ? Colors.white : ThemeProvider.primaryDarkBlue)),
         automaticallyImplyLeading: false,
+        centerTitle: true,
       ),
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -204,16 +205,16 @@ class SettingsScreen extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: OutlinedButton.icon(
               onPressed: () => _handleLogout(context),
-              icon: const Icon(Icons.logout, color: Colors.red),
+              icon: const Icon(Icons.logout, color: Colors.redAccent, size: 22),
               label: const Text(
                 "Logout",
-                style: TextStyle(color: Colors.red, fontSize: 16),
+                style: TextStyle(color: Colors.redAccent, fontSize: 17, fontWeight: FontWeight.bold),
               ),
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Colors.red),
-                minimumSize: const Size(double.infinity, 52),
+                side: const BorderSide(color: Colors.redAccent, width: 1.5),
+                minimumSize: const Size(double.infinity, 56),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(16),
                 ),
               ),
             ),
@@ -293,8 +294,12 @@ class SettingsScreen extends StatelessWidget {
   Widget _profileOption(
       BuildContext ctx, IconData icon, String title, String subtitle) {
     return ListTile(
-      leading: Icon(icon, color: const Color(0xFF0E417A)),
-      title: Text(title),
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(color: ThemeProvider.primaryDarkBlue.withValues(alpha: 0.1), shape: BoxShape.circle),
+        child: Icon(icon, color: ThemeProvider.primaryDarkBlue),
+      ),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
       subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
       onTap: () => Navigator.pop(ctx),
     );
@@ -343,13 +348,13 @@ class _SectionLabel extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(left: 4, bottom: 8),
       child: Text(
-        title,
+        title.toUpperCase(),
         style: TextStyle(
           fontSize: 13,
           fontWeight: FontWeight.w700,
           color: Theme.of(context).brightness == Brightness.dark
-              ? Colors.grey.shade400
-              : const Color(0xFF0E417A),
+              ? Colors.white54
+              : ThemeProvider.primaryDarkBlue.withValues(alpha: 0.7),
           letterSpacing: 0.8,
         ),
       ),
@@ -370,13 +375,18 @@ class _SettingsCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: cardColor,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Theme.of(context).brightness == Brightness.dark ? Colors.white.withValues(alpha: 0.05) : Colors.transparent,
+          width: 1,
+        ),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
+          if (Theme.of(context).brightness != Brightness.dark)
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
         ],
       ),
       child: Column(children: children),
@@ -409,23 +419,23 @@ class _ToggleTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       leading: Container(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: iconColor.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(10),
+          shape: BoxShape.circle,
         ),
-        child: Icon(icon, color: iconColor, size: 20),
+        child: Icon(icon, color: iconColor, size: 22),
       ),
-      title: Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+      title: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
       subtitle: subtitle != null
-          ? Text(subtitle!, style: TextStyle(fontSize: 12, color: subtitleColor))
+          ? Text(subtitle!, style: TextStyle(fontSize: 13, color: subtitleColor))
           : null,
       trailing: Switch.adaptive(
         value: value,
         onChanged: onChanged,
-        activeColor: const Color(0xFF0E417A),
+        activeColor: ThemeProvider.accentCyan,
       ),
     );
   }
@@ -454,18 +464,18 @@ class _TapTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       leading: Container(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: iconColor.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(10),
+          shape: BoxShape.circle,
         ),
-        child: Icon(icon, color: iconColor, size: 20),
+        child: Icon(icon, color: iconColor, size: 22),
       ),
-      title: Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+      title: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
       subtitle: subtitle != null
-          ? Text(subtitle!, style: TextStyle(fontSize: 12, color: subtitleColor))
+          ? Text(subtitle!, style: TextStyle(fontSize: 13, color: subtitleColor))
           : null,
       trailing: onTap != null
           ? Icon(Icons.chevron_right, color: subtitleColor)

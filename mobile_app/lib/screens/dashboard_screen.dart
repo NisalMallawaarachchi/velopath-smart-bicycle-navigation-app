@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../routes/app_routes.dart';
@@ -6,6 +7,7 @@ import '../widgets/device_helper.dart';
 import '../modules/motion_trace/providers/motion_trace_provider.dart';
 import '../providers/auth_provider.dart';
 import '../config/api_config.dart';
+import '../providers/theme_provider.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
@@ -100,103 +102,119 @@ class _DashboardContentState extends State<DashboardContent> {
       backgroundColor: const Color(0xFFF5F7FA),
       body: CustomScrollView(
         slivers: [
-          // ─── Gradient App Bar ───
+          // ─── Glassmorphism App Bar ───
           SliverAppBar(
             expandedHeight: 180,
             pinned: true,
             automaticallyImplyLeading: false,
-            backgroundColor: const Color(0xFF0E417A),
-            flexibleSpace: FlexibleSpaceBar(
-              background: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFF0E417A), Color(0xFF1A5BA8)],
-                  ),
-                ),
-                child: SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Greeting row
-                        Row(
+            backgroundColor: ThemeProvider.primaryDarkBlue.withValues(alpha: 0.9),
+            flexibleSpace: ClipRRect(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: FlexibleSpaceBar(
+                  background: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          ThemeProvider.primaryDarkBlue,
+                          ThemeProvider.primaryDarkBlue.withValues(alpha: 0.8),
+                        ],
+                      ),
+                    ),
+                    child: SafeArea(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            CircleAvatar(
-                              radius: 22,
-                              backgroundColor: Colors.white24,
-                              child: Text(
-                                username.isNotEmpty
-                                    ? username[0].toUpperCase()
-                                    : "?",
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    "${_getGreeting()} 👋",
-                                    style: const TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                  Text(
-                                    username,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-
-                          ],
-                        ),
-                        const SizedBox(height: 18),
-                        // Search bar
-                        GestureDetector(
-                          onTap: () => showSearch(
-                            context: context,
-                            delegate: _PlaceSearchDelegate(),
-                          ),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 12),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(12),
-                              border:
-                                  Border.all(color: Colors.white24, width: 1),
-                            ),
-                            child: Row(
+                            // Greeting row
+                            Row(
                               children: [
-                                Icon(Icons.search,
-                                    color: Colors.white.withValues(alpha: 0.7)),
-                                const SizedBox(width: 10),
-                                Text(
-                                  "Search places, POIs...",
-                                  style: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.6),
-                                    fontSize: 15,
+                                CircleAvatar(
+                                  radius: 24,
+                                  backgroundColor: ThemeProvider.accentCyan.withValues(alpha: 0.2),
+                                  child: Text(
+                                    username.isNotEmpty
+                                        ? username[0].toUpperCase()
+                                        : "?",
+                                    style: const TextStyle(
+                                      color: ThemeProvider.accentCyan,
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        "${_getGreeting()} 👋",
+                                        style: const TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 14,
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
+                                      Text(
+                                        username,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 24,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: -0.5,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],
                             ),
-                          ),
+                            const Spacer(),
+                            // Search bar
+                            GestureDetector(
+                              onTap: () => showSearch(
+                                context: context,
+                                delegate: _PlaceSearchDelegate(),
+                              ),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 14),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border:
+                                      Border.all(color: Colors.white.withValues(alpha: 0.15), width: 1),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.1),
+                                      blurRadius: 10,
+                                    )
+                                  ]
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.search,
+                                        color: Colors.white.withValues(alpha: 0.7)),
+                                    const SizedBox(width: 10),
+                                    Text(
+                                      "Search places, POIs...",
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(alpha: 0.6),
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
@@ -236,49 +254,60 @@ class _DashboardContentState extends State<DashboardContent> {
                         icon: Icons.handshake,
                         label: "Contributions",
                         value: "$contributions",
-                        color: Colors.green,
+                        color: Colors.green.shade600,
                       ),
                       const SizedBox(width: 12),
                       _StatTile(
                         icon: Icons.place,
                         label: "POIs",
                         value: "$poiCount",
-                        color: const Color(0xFF0E417A),
+                        color: ThemeProvider.primaryDarkBlue,
                       ),
                     ],
                   ),
 
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 32),
 
                   // ─── Quick Actions ───
-                  const Text(
+                  Text(
                     "Quick Actions",
                     style: TextStyle(
                       fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1A1A2E),
+                      fontWeight: FontWeight.w800,
+                      color: Theme.of(context).brightness == Brightness.dark ? Colors.white : ThemeProvider.primaryDarkBlue,
+                      letterSpacing: -0.5,
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
 
-                  // Start Riding — primary action
-                  SizedBox(
+                  // Start Riding — Hero button
+                  Container(
                     width: double.infinity,
-                    height: 58,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(18),
+                      boxShadow: [
+                        BoxShadow(
+                          color: ThemeProvider.primaryDarkBlue.withValues(alpha: 0.25),
+                          blurRadius: 15,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
                     child: ElevatedButton.icon(
                       onPressed: () => Navigator.pushNamed(
                           context, AppRoutes.routingEngineTest),
-                      icon: const Icon(Icons.route, size: 24),
+                      icon: const Icon(Icons.route, size: 26, color: ThemeProvider.accentCyan),
                       label: const Text("Start Riding",
                           style: TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.w600)),
+                              fontSize: 19, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF0E417A),
+                        backgroundColor: ThemeProvider.primaryDarkBlue,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(18),
                         ),
-                        elevation: 3,
+                        elevation: 0,
                       ),
                     ),
                   ),
@@ -338,31 +367,38 @@ class _StatTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
+          color: Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.transparent,
+            width: 1,
+          ),
           boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withValues(alpha: 0.08),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
+            if (!isDark)
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
           ],
         ),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
+                shape: BoxShape.circle,
               ),
               child: Icon(icon, color: color, size: 20),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -370,16 +406,19 @@ class _StatTile extends StatelessWidget {
                   Text(
                     value,
                     style: TextStyle(
-                      fontSize: 18,
+                      fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: color,
+                      color: isDark ? Colors.white : ThemeProvider.primaryDarkBlue,
+                      letterSpacing: -0.5,
                     ),
                   ),
+                  const SizedBox(height: 2),
                   Text(
                     label,
                     style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.grey.shade500,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: isDark ? Colors.white60 : Colors.grey.shade600,
                     ),
                   ),
                 ],
@@ -410,37 +449,45 @@ class _ActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
+          color: Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.transparent,
+            width: 1,
+          ),
           boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withValues(alpha: 0.08),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
+            if (!isDark)
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
           ],
         ),
         child: Column(
           children: [
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, color: color, size: 22),
+              child: Icon(icon, color: color, size: 24),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             Text(
               label,
-              style: const TextStyle(
-                fontSize: 12,
+              style: TextStyle(
+                fontSize: 13,
                 fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white : ThemeProvider.primaryDarkBlue,
               ),
               textAlign: TextAlign.center,
             ),

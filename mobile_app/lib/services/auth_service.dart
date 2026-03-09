@@ -134,4 +134,31 @@ class AuthService {
       throw Exception('Request timed out');
     }
   }
+
+  /// GOOGLE LOGIN
+  static Future<Map<String, dynamic>> googleLogin(String idToken) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse("$baseUrl/google"),
+            headers: {"Content-Type": "application/json"},
+            body: jsonEncode({"idToken": idToken}),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        return data;
+      } else {
+        throw Exception(data['message'] ?? 'Google Login failed');
+      }
+    } on SocketException {
+      throw Exception('Cannot reach server. Check your network connection.');
+    } on TimeoutException {
+      throw Exception('Request timed out. Please try again.');
+    } on FormatException {
+      throw Exception('Invalid server response');
+    }
+  }
 }

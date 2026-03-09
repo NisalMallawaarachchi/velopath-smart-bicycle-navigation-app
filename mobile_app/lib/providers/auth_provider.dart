@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import '../services/auth_service.dart';
+import '../services/auth_service.dart';
+import '../config/api_config.dart';
 
 /// User model for in-memory state
 class AppUser {
@@ -65,6 +68,45 @@ class AuthProvider extends ChangeNotifier {
       _user = AppUser.fromJson(response['user']);
 
       // Securely store token
+      await _storage.write(key: _tokenKey, value: _token);
+
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString().replaceFirst('Exception: ', '');
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Login with Google
+  Future<bool> loginWithGoogle() async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      // Use v7.2.0+ pattern
+      await GoogleSignIn.instance.initialize(
+        serverClientId: ApiConfig.googleWebClientId,
+      );
+
+      final GoogleSignInAccount googleUser = await GoogleSignIn.instance.authenticate();
+
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final String? idToken = googleAuth.idToken;
+
+      if (idToken == null) {
+        throw Exception("Failed to retrieve Google ID Token");
+      }
+
+      final response = await AuthService.googleLogin(idToken);
+
+      _token = response['token'];
+      _user = AppUser.fromJson(response['user']);
+
       await _storage.write(key: _tokenKey, value: _token);
 
       _isLoading = false;

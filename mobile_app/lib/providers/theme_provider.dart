@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class ThemeProvider extends ChangeNotifier {
   static const _key = 'velopath_theme_mode';
@@ -28,25 +29,39 @@ class ThemeProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// ─── Color Palette ───
+  static const Color primaryDarkBlue = Color(0xFF0A2540); 
+  static const Color accentCyan = Color(0xFF00E5FF);
+  static const Color surfaceLight = Color(0xFFF7F9FC);
+  static const Color surfaceDark = Color(0xFF0F172A);
+
   /// ─── Light Theme ───
   static ThemeData lightTheme = ThemeData(
     brightness: Brightness.light,
     useMaterial3: true,
+    fontFamily: GoogleFonts.outfit().fontFamily,
+    textTheme: GoogleFonts.outfitTextTheme(ThemeData.light().textTheme),
     colorScheme: ColorScheme.fromSeed(
-      seedColor: const Color(0xFF0E417A),
+      seedColor: primaryDarkBlue,
+      primary: primaryDarkBlue,
+      secondary: accentCyan,
       brightness: Brightness.light,
+      surface: surfaceLight,
     ),
-    scaffoldBackgroundColor: const Color(0xFFF5F7FA),
+    scaffoldBackgroundColor: surfaceLight,
     appBarTheme: const AppBarTheme(
-      backgroundColor: Color(0xFF0E417A),
-      foregroundColor: Colors.white,
+      backgroundColor: Colors.transparent,
+      foregroundColor: primaryDarkBlue,
       elevation: 0,
     ),
     cardColor: Colors.white,
     dividerColor: Colors.grey.shade200,
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: Colors.white,
-      indicatorColor: const Color(0xFF0E417A).withValues(alpha: 0.12),
+      indicatorColor: primaryDarkBlue.withValues(alpha: 0.1),
+      labelTextStyle: WidgetStateProperty.all(
+        GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w600),
+      ),
     ),
   );
 
@@ -54,21 +69,29 @@ class ThemeProvider extends ChangeNotifier {
   static ThemeData darkTheme = ThemeData(
     brightness: Brightness.dark,
     useMaterial3: true,
+    fontFamily: GoogleFonts.outfit().fontFamily,
+    textTheme: GoogleFonts.outfitTextTheme(ThemeData.dark().textTheme),
     colorScheme: ColorScheme.fromSeed(
-      seedColor: const Color(0xFF0E417A),
+      seedColor: primaryDarkBlue,
+      primary: accentCyan,
+      secondary: accentCyan,
       brightness: Brightness.dark,
+      surface: surfaceDark,
     ),
-    scaffoldBackgroundColor: const Color(0xFF121212),
+    scaffoldBackgroundColor: surfaceDark,
     appBarTheme: const AppBarTheme(
-      backgroundColor: Color(0xFF1A1A2E),
+      backgroundColor: Colors.transparent,
       foregroundColor: Colors.white,
       elevation: 0,
     ),
-    cardColor: const Color(0xFF1E1E2E),
-    dividerColor: Colors.grey.shade800,
+    cardColor: const Color(0xFF1E293B),
+    dividerColor: const Color(0xFF334155),
     navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: const Color(0xFF1A1A2E),
-      indicatorColor: const Color(0xFF4A90D9).withValues(alpha: 0.2),
+      backgroundColor: const Color(0xFF1E293B), // slightly lighter than scaffold
+      indicatorColor: accentCyan.withValues(alpha: 0.15),
+      labelTextStyle: WidgetStateProperty.all(
+        GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
+      ),
     ),
   );
 }

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/theme_provider.dart';
 import 'auth/login_screen.dart';
+import 'settings_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -9,16 +11,14 @@ class ProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark ? const Color(0xFF1E1E2E) : Colors.white;
-    final subtitleColor = isDark ? Colors.grey.shade400 : Colors.grey.shade600;
-    final headerGradient = isDark
-        ? const [Color(0xFF1A1A2E), Color(0xFF16213E)]
-        : const [Color(0xFF0E417A), Color(0xFF1A5BA8)];
-
+    final cardColor = Theme.of(context).cardColor;
+    final subtitleColor = isDark ? Colors.white60 : Colors.grey.shade600;
+    
     return Scaffold(
       appBar: AppBar(
-        title: const Text("My Profile"),
+        title: Text("My Profile", style: TextStyle(fontWeight: FontWeight.w700, color: isDark ? Colors.white : ThemeProvider.primaryDarkBlue)),
         automaticallyImplyLeading: false,
+        centerTitle: true,
       ),
       body: Consumer<AuthProvider>(
         builder: (context, auth, _) {
@@ -54,18 +54,27 @@ class ProfileScreen extends StatelessWidget {
                 // ─── Profile Header ───
                 Container(
                   width: double.infinity,
+                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: headerGradient,
+                      colors: [
+                        ThemeProvider.primaryDarkBlue,
+                        ThemeProvider.primaryDarkBlue.withValues(alpha: 0.8),
+                      ],
                     ),
-                    borderRadius: const BorderRadius.only(
-                      bottomLeft: Radius.circular(32),
-                      bottomRight: Radius.circular(32),
-                    ),
+                    borderRadius: BorderRadius.circular(28),
+                    boxShadow: [
+                      if (!isDark)
+                        BoxShadow(
+                          color: ThemeProvider.primaryDarkBlue.withValues(alpha: 0.2),
+                          blurRadius: 15,
+                          offset: const Offset(0, 8),
+                        ),
+                    ]
                   ),
-                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+                  padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
                   child: Column(
                     children: [
                       // Avatar with ring
@@ -190,9 +199,7 @@ class ProfileScreen extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
-                            color: isDark
-                                ? Colors.grey.shade400
-                                : const Color(0xFF0E417A),
+                            color: isDark ? Colors.white54 : ThemeProvider.primaryDarkBlue.withValues(alpha: 0.7),
                             letterSpacing: 0.8,
                           ),
                         ),
@@ -200,26 +207,30 @@ class ProfileScreen extends StatelessWidget {
                       Container(
                         decoration: BoxDecoration(
                           color: cardColor,
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.transparent,
+                            width: 1,
+                          ),
                           boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.04),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
+                            if (!isDark)
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.03),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
                           ],
                         ),
                         child: Column(
                           children: [
                             _InfoRow(
                               icon: Icons.person_outline,
-                              iconColor: const Color(0xFF0E417A),
+                              iconColor: ThemeProvider.primaryDarkBlue,
                               label: "Username",
                               value: user.username,
                               subtitleColor: subtitleColor,
                             ),
-                            Divider(height: 1, indent: 56,
-                                color: isDark ? Colors.grey.shade800 : Colors.grey.shade200),
+                            Divider(height: 1, indent: 64, color: isDark ? const Color(0xFF334155) : Colors.grey.shade200),
                             _InfoRow(
                               icon: Icons.email_outlined,
                               iconColor: Colors.teal,
@@ -227,8 +238,7 @@ class ProfileScreen extends StatelessWidget {
                               value: user.email,
                               subtitleColor: subtitleColor,
                             ),
-                            Divider(height: 1, indent: 56,
-                                color: isDark ? Colors.grey.shade800 : Colors.grey.shade200),
+                            Divider(height: 1, indent: 64, color: isDark ? const Color(0xFF334155) : Colors.grey.shade200),
                             _InfoRow(
                               icon: Icons.public,
                               iconColor: Colors.blue,
@@ -240,24 +250,73 @@ class ProfileScreen extends StatelessWidget {
                         ),
                       ),
 
+                      const SizedBox(height: 24),
+
+                      // ─── App Settings ───
+                      Padding(
+                        padding: const EdgeInsets.only(left: 4, bottom: 8),
+                        child: Text(
+                          "PREFERENCES",
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: isDark ? Colors.white54 : ThemeProvider.primaryDarkBlue.withValues(alpha: 0.7),
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: cardColor,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.transparent,
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            if (!isDark)
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.03),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                          ],
+                        ),
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          leading: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: ThemeProvider.accentCyan.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.settings, color: ThemeProvider.accentCyan, size: 24),
+                          ),
+                          title: const Text("App Settings", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                          subtitle: Text("Theme, notifications, & preferences", style: TextStyle(fontSize: 13, color: subtitleColor)),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
+                        ),
+                      ),
+
                       const SizedBox(height: 32),
 
                       // ─── Logout ───
                       SizedBox(
                         width: double.infinity,
-                        height: 52,
+                        height: 56,
                         child: OutlinedButton.icon(
                           onPressed: () => _handleLogout(context, auth),
-                          icon: const Icon(Icons.logout, color: Colors.red),
+                          icon: const Icon(Icons.logout, color: Colors.redAccent, size: 22),
                           label: const Text("Logout",
                               style: TextStyle(
-                                  color: Colors.red,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600)),
+                                  color: Colors.redAccent,
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.bold)),
                           style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Colors.red),
+                            side: const BorderSide(color: Colors.redAccent, width: 1.5),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius: BorderRadius.circular(16),
                             ),
                           ),
                         ),
@@ -338,37 +397,44 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: cardColor,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.transparent,
+            width: 1,
+          ),
           boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
+            if (!isDark)
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
           ],
         ),
         child: Column(
           children: [
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, color: color, size: 24),
+              child: Icon(icon, color: color, size: 28),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             Text(value,
                 style: TextStyle(
-                    fontSize: 24, fontWeight: FontWeight.bold, color: color)),
-            const SizedBox(height: 2),
+                    fontSize: 26, fontWeight: FontWeight.bold, color: isDark ? Colors.white : color, letterSpacing: -0.5)),
+            const SizedBox(height: 4),
             Text(label,
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: isDark ? Colors.white60 : Colors.grey.shade600)),
           ],
         ),
       ),
@@ -397,19 +463,19 @@ class _InfoRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       leading: Container(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: iconColor.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(10),
+          shape: BoxShape.circle,
         ),
-        child: Icon(icon, color: iconColor, size: 20),
+        child: Icon(icon, color: iconColor, size: 22),
       ),
       title: Text(label,
-          style: TextStyle(fontSize: 12, color: subtitleColor)),
+          style: TextStyle(fontSize: 13, color: subtitleColor, fontWeight: FontWeight.w500)),
       subtitle: Text(value,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
     );
   }
 }
@@ -580,18 +646,19 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
           const SizedBox(height: 24),
 
           SizedBox(
-            width: double.infinity, height: 50,
+            width: double.infinity, height: 56,
             child: ElevatedButton(
               onPressed: _saving ? null : _save,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0E417A),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                backgroundColor: ThemeProvider.primaryDarkBlue,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               ),
               child: _saving
-                  ? const SizedBox(height: 22, width: 22,
+                  ? const SizedBox(height: 24, width: 24,
                       child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
                   : const Text("Save Changes",
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
             ),
           ),
         ],

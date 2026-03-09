@@ -2,11 +2,10 @@ import 'package:flutter/material.dart';
 import 'dashboard_screen.dart';
 import 'view_poi_screen.dart';
 import 'profile_screen.dart';
-import 'settings_screen.dart';
 import '../modules/routing_engine/screens/map_screen.dart';
 
 /// Main app shell — single bottom nav bar, no drawer.
-/// Tabs: Home | Ride | Leaderboard | Profile | Settings
+/// Tabs: Home | Ride | Leaderboard | Profile
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
 
@@ -22,7 +21,6 @@ class _MainShellState extends State<MainShell> {
     MapScreen(),
     POIsScreen(title: "Leaderboard"),
     ProfileScreen(),
-    SettingsScreen(),
   ];
 
   @override
@@ -49,22 +47,17 @@ class _MainShellState extends State<MainShell> {
           NavigationDestination(
             icon: const Icon(Icons.map_outlined),
             selectedIcon: Icon(Icons.map, color: primaryColor),
-            label: "Ride",
+            label: "Explore",
           ),
           NavigationDestination(
             icon: const Icon(Icons.leaderboard_outlined),
             selectedIcon: Icon(Icons.leaderboard, color: primaryColor),
-            label: "Leaderboard",
+            label: "Contribute",
           ),
           NavigationDestination(
             icon: const Icon(Icons.person_outline),
             selectedIcon: Icon(Icons.person, color: primaryColor),
-            label: "Profile",
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings, color: primaryColor),
-            label: "Settings",
+            label: "You",
           ),
         ],
       ),

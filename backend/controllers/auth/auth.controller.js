@@ -3,8 +3,13 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 
+import { OAuth2Client } from "google-auth-library";
+
 dotenv.config();
 const SALT_ROUNDS = 12;
+
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
 
 // ──────────────────────────────────────
 // REGISTER
@@ -242,3 +247,76 @@ function _generateToken(user) {
     { expiresIn: process.env.JWT_EXPIRES_IN || "7d" }
   );
 }
+
+// ──────────────────────────────────────
+// GOOGLE SIGN IN
+// ──────────────────────────────────────
+export const googleSignIn = async (req, res) => {
+  const { idToken } = req.body;
+
+  if (!idToken) {
+    return res.status(400).json({ success: false, message: "idToken is required" });
+  }
+
+  try {
+    // 1. Verify token
+    const ticket = await client.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    
+    const payload = ticket.getPayload();
+    const { email, name, sub } = payload;
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // 2. Check if user exists
+    const userCheck = await pool.query(
+      `SELECT user_id, username, email, password_hash, country,
+              reputation_score, total_contributions, created_at
+       FROM users WHERE email = $1`,
+      [normalizedEmail]
+    );
+
+    let user = userCheck.rows[0];
+
+    // 3. If user doesn't exist, create one
+    if (!user) {
+      // Create a random password since they use Google
+      const randomPassword = Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-10);
+      const hashedPassword = await bcrypt.hash(randomPassword, SALT_ROUNDS);
+      
+      // We will use the name from Google as the username, but ensure it's not null
+      const username = (name || email.split('@')[0]).trim().slice(0, 50);
+
+      const insertResult = await pool.query(
+        `INSERT INTO users (username, email, password_hash)
+         VALUES ($1, $2, $3)
+         RETURNING user_id, username, email, country, reputation_score, total_contributions, created_at`,
+        [username, normalizedEmail, hashedPassword]
+      );
+      user = insertResult.rows[0];
+    }
+
+    // 4. Generate JWT
+    const token = _generateToken(user);
+
+    // 5. Respond
+    res.json({
+      success: true,
+      message: "Google login successful",
+      token,
+      user: {
+        id: user.user_id,
+        username: user.username,
+        email: user.email,
+        country: user.country,
+        reputationScore: parseFloat(user.reputation_score),
+        totalContributions: user.total_contributions,
+        createdAt: user.created_at,
+      },
+    });
+  } catch (err) {
+    console.error("[Auth] Google SignIn error:", err);
+    res.status(401).json({ success: false, message: "Invalid Google token or setup" });
+  }
+};

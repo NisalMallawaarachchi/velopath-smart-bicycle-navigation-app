@@ -224,6 +224,55 @@ class _LoginScreenState extends State<LoginScreen> {
 
                       const SizedBox(height: 24),
 
+                      // Divider
+                      const Row(
+                        children: [
+                          Expanded(child: Divider()),
+                          Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 16),
+                            child: Text("OR", style: TextStyle(color: Colors.grey)),
+                          ),
+                          Expanded(child: Divider()),
+                        ],
+                      ),
+                      
+                      const SizedBox(height: 24),
+
+                      // Google Login Button
+                      SizedBox(
+                        width: double.infinity,
+                        height: 55,
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Colors.grey, width: 1),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          icon: const Icon(Icons.g_mobiledata, size: 36, color: Colors.blue),
+                          label: const Text(
+                            "Continue with Google",
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.black87,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          onPressed: auth.isLoading ? null : () async {
+                             auth.clearError();
+                             final success = await auth.loginWithGoogle();
+                             if (success && mounted) {
+                               Navigator.pushReplacement(
+                                 context,
+                                 MaterialPageRoute(builder: (_) => const MainShell()),
+                               );
+                             }
+                          },
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 30),
+
                       // Sign up link
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
