@@ -1,0 +1,10 @@
+node_modules
+npm-debug.log
+.env
+.git
+.gitignore
+__pycache__
+*.pyc
+route_debug.txt
+routing_export.sql
+check_routes.mjs
