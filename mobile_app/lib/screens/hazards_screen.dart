@@ -23,6 +23,7 @@ class _HazardsScreenState extends State<HazardsScreen> {
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   List<Map<String, dynamic>> _hazards = [];
+  final Set<String> _votedHazardIds = {}; // Track voted hazards locally
   bool _loading = true;
   String? _error;
   LatLng _center = const LatLng(6.9271, 79.8612); // Default: Colombo
@@ -139,6 +140,7 @@ class _HazardsScreenState extends State<HazardsScreen> {
       if (response.statusCode == 200 && data['success'] == true) {
         final newConf = double.tryParse(data['new_confidence'].toString()) ?? 0.0;
         final newStatus = data['status'] ?? '';
+        setState(() => _votedHazardIds.add(hazardId));
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -153,6 +155,7 @@ class _HazardsScreenState extends State<HazardsScreen> {
         );
         _loadHazards(); // Refresh markers
       } else if (response.statusCode == 400) {
+        setState(() => _votedHazardIds.add(hazardId));
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(data['error'] ?? 'Already voted on this hazard'),
@@ -189,6 +192,8 @@ class _HazardsScreenState extends State<HazardsScreen> {
     final status = (hazard['status'] ?? 'pending') as String;
     final confirms = hazard['confirmationCount'] ?? 0;
     final detections = hazard['detectionCount'] ?? 1;
+    final hazardId = hazard['id'].toString();
+    final alreadyVoted = _votedHazardIds.contains(hazardId);
 
     showModalBottomSheet(
       context: context,
@@ -288,46 +293,72 @@ class _HazardsScreenState extends State<HazardsScreen> {
 
             const SizedBox(height: 24),
 
-            // Action buttons
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.check_circle),
-                    label: const Text('Still There'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green.shade600,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                    ),
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _vote(hazard['id'], 'confirm');
-                    },
-                  ),
+            // Action buttons OR "Already voted" banner
+            if (alreadyVoted)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.green.shade300),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.cancel),
-                    label: const Text('Not There'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red.shade600,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.green.shade700, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      'You already verified this hazard',
+                      style: TextStyle(
+                        color: Colors.green.shade700,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
                     ),
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _vote(hazard['id'], 'deny');
-                    },
-                  ),
+                  ],
                 ),
-              ],
-            ),
+              )
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.check_circle),
+                      label: const Text('Still There'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green.shade600,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _vote(hazardId, 'confirm');
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.cancel),
+                      label: const Text('Not There'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red.shade600,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _vote(hazardId, 'deny');
+                      },
+                    ),
+                  ),
+                ],
+              ),
           ],
         ),
       ),
