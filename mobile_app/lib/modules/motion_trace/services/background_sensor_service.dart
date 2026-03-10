@@ -69,6 +69,14 @@ class BackgroundSensorService {
       _isRunning = true;
       await _showTrackingNotification();
 
+      debugPrint('\n🚴 ═══════════════════════════════════════');
+      debugPrint('🚴 RIDE STARTED');
+      debugPrint('🚴 Session: $_currentSessionId');
+      debugPrint('🚴 Sensors: accel=${_sensorService.hasAccelerometer} gyro=${_sensorService.hasGyroscope} mag=${_sensorService.hasMagnetometer} gps=${_sensorService.hasLocation}');
+      debugPrint('🚴 Collecting data every 200ms');
+      debugPrint('🚴 Local save every 30s, Upload every ${_uploadIntervalMinutes}min');
+      debugPrint('🚴 ═══════════════════════════════════════\n');
+
       _uploadTimer = Timer.periodic(
         Duration(minutes: _uploadIntervalMinutes),
         (_) => _periodicUpload(),
@@ -82,7 +90,7 @@ class BackgroundSensorService {
       return true;
     } catch (e) {
       _isRunning = false;
-      debugPrint('Failed to start tracking: $e');
+      debugPrint('❌ Failed to start tracking: $e');
       return false;
     }
   }
@@ -95,7 +103,15 @@ class BackgroundSensorService {
     _uploadTimer = null;
     await _saveToLocal();
     await _cancelNotification();
+
+    debugPrint('\n🛑 ═══════════════════════════════════════');
+    debugPrint('🛑 RIDE STOPPED');
+    debugPrint('🛑 Session: $_currentSessionId');
+    debugPrint('🛑 Total readings collected: $_totalReadings');
+    debugPrint('🛑 ═══════════════════════════════════════\n');
+
     if (uploadOnStop && _currentSessionId != null) {
+      debugPrint('📤 Uploading final session data to backend...');
       await _uploadSession();
     }
   }
@@ -107,7 +123,13 @@ class BackgroundSensorService {
     _totalReadings += readings.length;
     try {
       await SensorStorageService.appendToSession(_currentSessionId!, readings);
+      debugPrint('💾 [LOCAL SAVE] ${readings.length} readings saved to Hive | Total: $_totalReadings');
+      if (readings.isNotEmpty) {
+        final last = readings.last;
+        debugPrint('   📍 Last GPS: (${last.latitude.toStringAsFixed(6)}, ${last.longitude.toStringAsFixed(6)}) | Label: ${last.label}');
+      }
     } catch (e) {
+      debugPrint('❌ [LOCAL SAVE] Failed: $e');
       _sensorService.readings.addAll(readings);
     }
   }
@@ -126,10 +148,12 @@ class BackgroundSensorService {
   Future<void> _periodicUpload() async {
     if (_currentSessionId == null) return;
     await _saveToLocal();
-    if (await _hasConnectivity()) {
+    final hasNet = await _hasConnectivity();
+    if (hasNet) {
+      debugPrint('\n📡 [PERIODIC UPLOAD] Internet available, uploading...');
       await _uploadSession();
     } else {
-      debugPrint('[BackgroundSensor] No connectivity, data saved locally');
+      debugPrint('📡 [PERIODIC UPLOAD] No connectivity — data saved locally, will retry later');
     }
   }
 
@@ -137,15 +161,20 @@ class BackgroundSensorService {
     if (_currentSessionId == null) return;
     try {
       final readings = SensorStorageService.getSessionData(_currentSessionId!);
-      if (readings.isEmpty) return;
+      if (readings.isEmpty) {
+        debugPrint('📤 [UPLOAD] No readings to upload');
+        return;
+      }
+      debugPrint('📤 [UPLOAD] Sending ${readings.length} readings to backend POST /api/hazard/upload ...');
       final result = await HazardApiService.uploadSession(readings, 'predict');
       if (result.success) {
-        // Clear local data after successful upload
         await SensorStorageService.deleteSession(_currentSessionId!);
-        debugPrint('[BackgroundSensor] Upload successful, local data cleared');
+        debugPrint('✅ [UPLOAD] Success! Backend received data. Local cache cleared.');
+      } else {
+        debugPrint('⚠️ [UPLOAD] Backend returned failure');
       }
     } catch (e) {
-      debugPrint('[BackgroundSensor] Upload error (will retry): $e');
+      debugPrint('❌ [UPLOAD] Error (will retry): $e');
     }
   }
 

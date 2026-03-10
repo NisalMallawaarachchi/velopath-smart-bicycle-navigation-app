@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../services/auth_service.dart';
-import '../services/auth_service.dart';
 import '../config/api_config.dart';
 
 /// User model for in-memory state
@@ -88,14 +87,21 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Use v7.2.0+ pattern
-      await GoogleSignIn.instance.initialize(
+      final GoogleSignIn googleSignIn = GoogleSignIn(
         serverClientId: ApiConfig.googleWebClientId,
       );
 
-      final GoogleSignInAccount googleUser = await GoogleSignIn.instance.authenticate();
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
 
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      if (googleUser == null) {
+        // User canceled the sign-in
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
       final String? idToken = googleAuth.idToken;
 
       if (idToken == null) {

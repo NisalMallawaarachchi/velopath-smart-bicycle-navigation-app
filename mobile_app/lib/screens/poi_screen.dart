@@ -704,7 +704,7 @@ class _PoiScreenState extends State<PoiScreen> {
                   },
                   child: Text(
                     showLowQuality ? "Hide Low" : "Show All",
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: ThemeProvider.primaryDarkBlue),
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: ThemeProvider.primaryDarkBlue),
                   ),
                 ),
               ],

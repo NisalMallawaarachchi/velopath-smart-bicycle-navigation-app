@@ -1,0 +1,14 @@
+Test 1: Full-table directed dijkstra...
+  Directed result: 106
+Test 2: One-way stats: {"fwd":"2573","rev":"0","both":"102751","total":"106378"}
+Test 3: Cost columns: cost, cost_s, length_m, one_way, reverse_cost, reverse_cost_s
+Test 4: cost_s result: 106
+Test 5: Edges with length_m <= 0: 0
+Test 6: Edges at start node: 3
+  14083->25578 ow=0 len=112.419755990752
+  25578->37259 ow=0 len=221.189768831806
+  25578->51036 ow=0 len=110.21953596842
+Test 7: Edges at end node: 3
+  24359->15592 ow=0 len=412.554855943631
+  45733->15592 ow=0 len=856.90166385766
+  15592->25720 ow=0 len=501.725825690427

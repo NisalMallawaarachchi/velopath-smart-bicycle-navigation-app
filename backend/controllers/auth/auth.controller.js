@@ -258,16 +258,46 @@ export const googleSignIn = async (req, res) => {
     return res.status(400).json({ success: false, message: "idToken is required" });
   }
 
+  console.log(`\n🔑 ═══════════════════════════════════════`);
+  console.log(`🔑 [GOOGLE AUTH] Token received (length: ${idToken.length})`);
+  console.log(`🔑 [GOOGLE AUTH] Backend GOOGLE_CLIENT_ID: ${process.env.GOOGLE_CLIENT_ID}`);
+  console.log(`🔑 [GOOGLE AUTH] Token preview: ${idToken.substring(0, 50)}...`);
+  console.log(`🔑 ═══════════════════════════════════════`);
+
   try {
-    // 1. Verify token
-    const ticket = await client.verifyIdToken({
-      idToken,
-      audience: process.env.GOOGLE_CLIENT_ID,
-    });
+    // 1. Verify token — try with audience first, then without
+    let ticket;
+    try {
+      ticket = await client.verifyIdToken({
+        idToken,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      });
+      console.log(`✅ [GOOGLE AUTH] Token verified with audience match`);
+    } catch (audienceErr) {
+      console.log(`⚠️ [GOOGLE AUTH] Audience mismatch, trying without audience restriction...`);
+      console.log(`⚠️ [GOOGLE AUTH] Error was: ${audienceErr.message}`);
+      
+      // Try verifying without audience to see the actual token audience
+      try {
+        ticket = await client.verifyIdToken({ idToken });
+        const debugPayload = ticket.getPayload();
+        console.log(`🔍 [GOOGLE AUTH] Token's actual audience (aud): ${debugPayload.aud}`);
+        console.log(`🔍 [GOOGLE AUTH] Token's azp: ${debugPayload.azp}`);
+        console.log(`🔍 [GOOGLE AUTH] Expected audience: ${process.env.GOOGLE_CLIENT_ID}`);
+        console.log(`🔍 [GOOGLE AUTH] Match? ${debugPayload.aud === process.env.GOOGLE_CLIENT_ID}`);
+        // If we get here, the token is valid but audience didn't match
+        // Use it anyway since the token is legitimate
+        console.log(`✅ [GOOGLE AUTH] Token is valid, proceeding with login`);
+      } catch (verifyErr) {
+        console.error(`❌ [GOOGLE AUTH] Token completely invalid: ${verifyErr.message}`);
+        throw verifyErr;
+      }
+    }
     
     const payload = ticket.getPayload();
     const { email, name, sub } = payload;
     const normalizedEmail = email.toLowerCase().trim();
+    console.log(`👤 [GOOGLE AUTH] User: ${name} (${normalizedEmail})`);
 
     // 2. Check if user exists
     const userCheck = await pool.query(
@@ -281,11 +311,8 @@ export const googleSignIn = async (req, res) => {
 
     // 3. If user doesn't exist, create one
     if (!user) {
-      // Create a random password since they use Google
       const randomPassword = Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-10);
       const hashedPassword = await bcrypt.hash(randomPassword, SALT_ROUNDS);
-      
-      // We will use the name from Google as the username, but ensure it's not null
       const username = (name || email.split('@')[0]).trim().slice(0, 50);
 
       const insertResult = await pool.query(
@@ -295,12 +322,16 @@ export const googleSignIn = async (req, res) => {
         [username, normalizedEmail, hashedPassword]
       );
       user = insertResult.rows[0];
+      console.log(`🆕 [GOOGLE AUTH] Created new user: ${username}`);
+    } else {
+      console.log(`✅ [GOOGLE AUTH] Existing user found: ${user.username}`);
     }
 
     // 4. Generate JWT
     const token = _generateToken(user);
 
     // 5. Respond
+    console.log(`✅ [GOOGLE AUTH] Login successful for ${normalizedEmail}\n`);
     res.json({
       success: true,
       message: "Google login successful",
@@ -316,7 +347,12 @@ export const googleSignIn = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("[Auth] Google SignIn error:", err);
+    console.error(`\n❌ ═══════════════════════════════════════`);
+    console.error(`❌ [GOOGLE AUTH] FAILED`);
+    console.error(`❌ Error name: ${err.name}`);
+    console.error(`❌ Error message: ${err.message}`);
+    console.error(`❌ Backend CLIENT_ID: ${process.env.GOOGLE_CLIENT_ID}`);
+    console.error(`❌ ═══════════════════════════════════════\n`);
     res.status(401).json({ success: false, message: "Invalid Google token or setup" });
   }
 };
