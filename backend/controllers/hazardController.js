@@ -10,7 +10,7 @@ import pool from "../config/db.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Path to Python interpreter (Anaconda)
+// Path to Python interpreter — use env var, fallback to system python3
 const PYTHON_PATH = process.env.PYTHON_PATH || "python3";
 const ML_DIR = path.join(__dirname, "..", "ml");
 
