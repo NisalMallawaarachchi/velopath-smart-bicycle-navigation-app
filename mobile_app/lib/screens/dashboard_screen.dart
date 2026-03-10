@@ -45,13 +45,6 @@ class _DashboardContentState extends State<DashboardContent> {
       (_) => loadDashboard(),
     );
 
-    // Auto-request all permissions on first home page load
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final motionTrace = context.read<MotionTraceProvider>();
-      if (!motionTrace.allPermissionsGranted) {
-        motionTrace.requestPermissionsAfterLogin(context);
-      }
-    });
   }
 
   @override
