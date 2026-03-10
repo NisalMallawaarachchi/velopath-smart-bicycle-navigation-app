@@ -23,6 +23,12 @@ const pool = new Pool({
   connectionTimeoutMillis: 15000,
 });
 
+// Prevent ECONNRESET / network errors from crashing the process.
+// The pool will automatically replace dead connections on the next query.
+pool.on("error", (err) => {
+  console.error("⚠️  Idle database connection error (auto-recovering):", err.message);
+});
+
 pool
   .connect()
   .then((client) => {

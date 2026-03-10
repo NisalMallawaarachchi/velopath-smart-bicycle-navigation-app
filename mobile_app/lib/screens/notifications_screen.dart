@@ -25,7 +25,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     try {
       final deviceId = await getDeviceId();
       final response = await http.get(
-        Uri.parse(ApiConfig.notifications(deviceId)),
+        Uri.parse(ApiConfig.poiNotifications(deviceId)),
       );
 
       if (response.statusCode == 200) {

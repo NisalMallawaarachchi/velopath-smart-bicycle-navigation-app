@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_app/screens/add_poi_screen.dart';
 import 'package:mobile_app/screens/splash_screen.dart';
+import 'package:mobile_app/screens/hazards_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/main_shell.dart';
 import 'screens/poi_screen.dart';
@@ -59,6 +60,7 @@ class VeloPathApp extends StatelessWidget {
               '/pois': (context) => const PoiScreen(),
               '/all-pois-map': (context) => const AllPOIsMapScreen(),
               '/add-poi': (context) => const AddPOIScreen(),
+              '/hazards': (context) => const HazardsScreen(),
               '/api-test': (context) => ApiTestPage(),
               ...AppRoutes.routes,
             },
