@@ -11,7 +11,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Path to Python interpreter (Anaconda)
-const PYTHON_PATH = "C:\\Users\\Droofy\\anaconda3\\python.exe";
+const PYTHON_PATH = process.env.PYTHON_PATH || "python3";
 const ML_DIR = path.join(__dirname, "..", "ml");
 
 /**
