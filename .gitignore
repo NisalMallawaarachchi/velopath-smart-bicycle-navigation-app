@@ -60,7 +60,6 @@ coverage/
 /backend/.DS_Store
 /backend/npm-debug.log
 /backend/yarn.lock
-/backend/package-lock.json
 /backend/.eslintcache
 
 # =========================
