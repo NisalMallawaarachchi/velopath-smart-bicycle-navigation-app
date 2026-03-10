@@ -1,5 +1,5 @@
 class ApiConfig {
-  static const String baseUrl = "http://10.161.65.59:5001";
+  static const String baseUrl = "https://velopath-smart-bicycle-navigation-app-production.up.railway.app";
 
   static const String pois = "$baseUrl/api/pois";
   static String poiById(dynamic id) => "$baseUrl/api/pois/$id";
@@ -12,7 +12,7 @@ static String addComment(dynamic poiId) => "$baseUrl/api/pois/$poiId/comments";
 
 static const String rankedPois = "$baseUrl/api/pois/ranked";
 
-  static String? get googleWebClientId => null;
+
 
 static String notifications(String deviceId) =>
     "$baseUrl/api/pois/notifications/$deviceId";
