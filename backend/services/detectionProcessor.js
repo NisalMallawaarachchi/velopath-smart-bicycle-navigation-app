@@ -19,7 +19,13 @@ export default class DetectionProcessor {
         LIMIT 100
       `);
 
-      console.log(`[DetectionProcessor] Found ${result.rows.length} unprocessed detections`);
+      if (result.rows.length > 0) {
+        console.log(`\n⚙️  ═══════════════════════════════════════`);
+        console.log(`⚙️  [CRON] Found ${result.rows.length} unprocessed detections`);
+        console.log(`⚙️  ═══════════════════════════════════════`);
+      } else {
+        console.log(`[DetectionProcessor] Found 0 unprocessed detections`);
+      }
 
       for (const detection of result.rows) {
         await this.processDetection(detection, client);
@@ -46,10 +52,10 @@ export default class DetectionProcessor {
 
       if (nearbyHazard) {
         await this.updateHazard(nearbyHazard.id, detection, client);
-        console.log(`[DetectionProcessor] Updated hazard ${nearbyHazard.id}`);
+        console.log(`   🔄 [CRON] Updated existing hazard #${nearbyHazard.id} (${detection.hazard_type}) — ${nearbyHazard.distance?.toFixed(1)}m away`);
       } else {
         const newHazard = await this.createHazard(detection, client);
-        console.log(`[DetectionProcessor] Created new hazard ${newHazard.id}`);
+        console.log(`   🆕 [CRON] Created NEW hazard #${newHazard.id} — ${detection.hazard_type} at (${detection.latitude}, ${detection.longitude})`);
       }
 
       await client.query(

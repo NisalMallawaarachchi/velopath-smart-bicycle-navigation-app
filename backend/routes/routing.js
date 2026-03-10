@@ -334,8 +334,10 @@ router.get("/route", async (req, res) => {
       return res.status(500).json({ error: "Snap failed" });
     }
 
-    const startNode = s.rows[0].id;
-    const endNode = e.rows[0].id;
+    const startNode = parseInt(s.rows[0].id);
+    const endNode = parseInt(e.rows[0].id);
+
+    console.log(`📌 [ROUTING] Nodes: ${startNode} (type: ${typeof startNode}) -> ${endNode} (type: ${typeof endNode})`);
 
     // ROUTING
     // General mathematical structure: C(e) = w_d * Distance + w_s * HazardRisk + w_q * RoadDifficulty - w_sc * ScenicValue
@@ -359,64 +361,62 @@ router.get("/route", async (req, res) => {
 
     // Bounding Box: dynamically expand based on euclidean trip distance
     const distDeg = Math.sqrt(Math.pow(endLon - startLon, 2) + Math.pow(endLat - startLat, 2));
-    const expandDeg = Math.max(0.05, distDeg * 0.5); // At least 5km padding, or 50% of route length
-    const bboxSql = `ST_Intersects(w.geom, ST_Expand(ST_SetSRID(ST_MakeBox2D(ST_Point(${startLon}, ${startLat}), ST_Point(${endLon}, ${endLat})), 4326), ${expandDeg}))`;
+    const expandDeg = Math.max(0.15, distDeg * 1.5);
 
-    // Multiplicative Cost formula factoring in conditionally triggered map lookups to save 10+ seconds
+    // Multiplicative Cost formula
     let costExpr = `length_m * ${w_d}`;
     let hazardExpr = w_s > 0 ? `(1.0 + (${w_s} * COALESCE((SELECT COUNT(*) FROM public.hazards h WHERE ST_DWithin(w.geom, h.location, 0.0005)), 0) * 10.0))` : `1.0`;
     let scenicExpr = w_sc > 0 ? `GREATEST(0.01, 1.0 - (${w_sc} * COALESCE((SELECT SUM(p.score) FROM public.custom_pois p WHERE ST_DWithin(w.geom, p.geom, 0.001)), 0) / 5.0))` : `1.0`;
 
-    let edgeSql = `
+    const bboxFilter = `ST_Intersects(w.geom, ST_Expand(ST_SetSRID(ST_MakeBox2D(ST_Point(${startLon}, ${startLat}), ST_Point(${endLon}, ${endLat})), 4326), ${expandDeg}))`;
+
+    const edgeSqlBbox = `
       SELECT id, source, target,
         (${costExpr} * ${hazardExpr} * ${scenicExpr}) AS cost,
         (${costExpr} * ${hazardExpr} * ${scenicExpr}) AS reverse_cost
       FROM routing.ways w
       WHERE source IS NOT NULL AND target IS NOT NULL
-        AND ${bboxSql}
+        AND ${bboxFilter}
     `;
 
-    const routeQ = await db.query(
-      `
-SELECT
-  w.id,
-  w.length_m,
-  w.name,
-
-  EXISTS (
-    SELECT 1
-    FROM public.hazards h
-    WHERE ST_DWithin(w.geom, h.location, 0.0005)
-  ) AS has_hazard,
-
-  COALESCE((
-    SELECT AVG(p.score)
-    FROM public.custom_pois p
-    WHERE ST_DWithin(w.geom, p.geom, 0.0005)
-  ), 0) AS poi_score,
-
-  ST_AsGeoJSON(
-    CASE
-      WHEN r.node = w.target THEN ST_Reverse(w.geom)
-      ELSE w.geom
-    END
-  ) AS geojson,
+    // NOTE: Node IDs are embedded directly to avoid parameterized query issues with pgr_dijkstra
+    const outerQuery = (innerEdgeSql) => `
+SELECT w.id, w.length_m, w.name,
+  EXISTS (SELECT 1 FROM public.hazards h WHERE ST_DWithin(w.geom, h.location, 0.0005)) AS has_hazard,
+  COALESCE((SELECT AVG(p.score) FROM public.custom_pois p WHERE ST_DWithin(w.geom, p.geom, 0.0005)), 0) AS poi_score,
+  ST_AsGeoJSON(CASE WHEN r.node = w.target THEN ST_Reverse(w.geom) ELSE w.geom END) AS geojson,
   r.seq
-
-FROM pgr_dijkstra(
-  $$
-  ${edgeSql}
-  $$,
-  $1::BIGINT,
-  $2::BIGINT,
-  true
-) AS r
-JOIN routing.ways w
-ON r.edge = w.id
+FROM pgr_dijkstra($$ ${innerEdgeSql} $$, ${startNode}, ${endNode}, true) AS r
+JOIN routing.ways w ON r.edge = w.id
 ORDER BY r.seq;
-`,
-      [startNode, endNode],
-    );
+`;
+
+    // Attempt 1: bbox-filtered with full cost formula
+    console.log(`🧭 [ROUTING] Attempt 1: bbox=${expandDeg.toFixed(3)}° with full cost formula`);
+    let routeQ = { rows: [] };
+    try {
+      routeQ = await db.query(outerQuery(edgeSqlBbox));
+      console.log(`   Attempt 1 result: ${routeQ.rows.length} rows`);
+    } catch (err) {
+      console.log(`⚠️ [ROUTING] Attempt 1 failed: ${err.message.substring(0, 200)}`);
+    }
+
+    // Attempt 2: full table with simple length_m cost (fast, always finds a path if one exists)
+    if (!routeQ.rows.length) {
+      console.log(`🧭 [ROUTING] Attempt 2: full table with simple cost`);
+      const edgeSqlSimple = `SELECT id, source, target, length_m AS cost, length_m AS reverse_cost FROM routing.ways WHERE source IS NOT NULL AND target IS NOT NULL`;
+      try {
+        routeQ = await db.query(outerQuery(edgeSqlSimple));
+        console.log(`   Attempt 2 result: ${routeQ.rows.length} rows`);
+      } catch (err) {
+        console.log(`⚠️ [ROUTING] Attempt 2 failed: ${err.message.substring(0, 200)}`);
+      }
+    }
+
+    if (routeQ.rows.length) {
+      console.log(`✅ [ROUTING] Found path: ${routeQ.rows.length} segments`);
+    }
+
     if (!routeQ.rows.length) {
       return res.json({ error: "No path found" });
     }

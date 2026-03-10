@@ -43,6 +43,10 @@ export const healthCheck = async (req, res) => {
 export const predictHazard = async (req, res) => {
   try {
     const { sensorData } = req.body;
+    console.log(`\n📥 ═══════════════════════════════════════`);
+    console.log(`📥 [PREDICT] Received ${sensorData?.length || 0} sensor readings`);
+    console.log(`📥 Device: ${req.body.deviceId || 'unknown'}`);
+    console.log(`📥 ═══════════════════════════════════════`);
 
     if (!sensorData || !Array.isArray(sensorData)) {
       return res.status(400).json({
@@ -97,6 +101,10 @@ export const predictHazard = async (req, res) => {
 
       try {
         const result = JSON.parse(stdout);
+        console.log(`🤖 [ML RESULT] Predictions: ${result.predictions?.length || 0} total`);
+        const hazardPreds = result.predictions?.filter(p => p.hazard_type !== 'smooth') || [];
+        console.log(`🤖 [ML RESULT] Hazards found: ${hazardPreds.length}`);
+        hazardPreds.forEach(h => console.log(`   🔴 ${h.hazard_type} at (${h.latitude}, ${h.longitude}) conf=${h.confidence}`));
 
         // Save hazard detections to ml_detections table
         await saveDetectionsToDB(result, req.body.deviceId);
@@ -183,9 +191,12 @@ export const getDemoPredict = async (req, res) => {
  */
 export const uploadLabeledData = async (req, res) => {
   try {
-    console.log("≡ƒôÑ Upload request received");
-    console.log("   Mode:", req.body.mode);
-    console.log("   Data points:", req.body.sensorData?.length || 0);
+    console.log(`\n📥 ═══════════════════════════════════════`);
+    console.log(`📥 [UPLOAD] Received sensor data upload`);
+    console.log(`📥 Mode: ${req.body.mode}`);
+    console.log(`📥 Data points: ${req.body.sensorData?.length || 0}`);
+    console.log(`📥 Device: ${req.body.deviceId || 'unknown'}`);
+    console.log(`📥 ═══════════════════════════════════════`);
     
     const { sensorData, mode } = req.body;
 
@@ -293,6 +304,13 @@ export const uploadLabeledData = async (req, res) => {
           result.mode = "predict";
           result.inputHadLabels = hasLabels;
 
+          console.log(`🤖 [ML RESULT] Total predictions: ${result.predictions?.length || 0}`);
+          const hazardPreds = result.predictions?.filter(p => p.hazard_type !== 'smooth') || [];
+          console.log(`🤖 [ML RESULT] Hazards detected: ${hazardPreds.length}`);
+          hazardPreds.forEach(h => console.log(`   🔴 ${h.hazard_type} at (${h.latitude}, ${h.longitude}) conf=${h.confidence}`));
+          const smoothCount = (result.predictions?.length || 0) - hazardPreds.length;
+          console.log(`   🟢 Smooth readings: ${smoothCount}`);
+
           // Save hazard detections to ml_detections table
           await saveDetectionsToDB(result, req.body.deviceId);
 
@@ -326,7 +344,13 @@ async function saveDetectionsToDB(result, deviceId) {
     (p) => p.hazard_type !== "smooth" && p.latitude && p.longitude
   );
 
-  if (hazards.length === 0) return;
+  if (hazards.length === 0) {
+    console.log(`💾 [DB SAVE] No hazards to save (all readings were smooth)`);
+    return;
+  }
+
+  console.log(`\n💾 ═══════════════════════════════════════`);
+  console.log(`💾 [DB SAVE] Saving ${hazards.length} hazard detections to ml_detections table`);
 
   try {
     const client = await pool.connect();
@@ -343,14 +367,15 @@ async function saveDetectionsToDB(result, deviceId) {
             deviceId || "unknown",
           ]
         );
+        console.log(`   ✅ Saved: ${h.hazard_type} at (${h.latitude}, ${h.longitude})`);
       }
-      console.log(
-        `[HazardController] Saved ${hazards.length} detections to ml_detections`
-      );
+      console.log(`💾 [DB SAVE] All ${hazards.length} detections saved successfully!`);
+      console.log(`💾 ═══════════════════════════════════════\n`);
+      console.log(`⏳ Cron job will process these into hazards within 30 seconds...\n`);
     } finally {
       client.release();
     }
   } catch (err) {
-    console.error("[HazardController] Failed to save detections:", err.message);
+    console.error("❌ [DB SAVE] Failed to save detections:", err.message);
   }
 }

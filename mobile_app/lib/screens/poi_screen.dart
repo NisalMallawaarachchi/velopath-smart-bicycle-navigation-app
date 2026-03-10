@@ -761,6 +761,7 @@ class _PoiScreenState extends State<PoiScreen> {
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(Icons.visibility_off, size: 14, color: isDark ? Colors.grey.shade400 : Colors.grey.shade700),
                               const SizedBox(width: 4),
@@ -768,24 +769,23 @@ class _PoiScreenState extends State<PoiScreen> {
                             ],
                           ),
                         ),
-                      ],
-                    ),
-                    TextButton(
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      onPressed: () {
-                        setState(() => showLowQuality = !showLowQuality);
-                        applyFilters();
-                      },
-                      child: Text(
-                        showLowQuality ? "Hide Low" : "Show All",
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: ThemeProvider.primaryDarkBlue),
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
+                ),
+                TextButton(
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  onPressed: () {
+                    setState(() => showLowQuality = !showLowQuality);
+                    applyFilters();
+                  },
+                  child: Text(
+                    showLowQuality ? "Hide Low" : "Show All",
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: ThemeProvider.primaryDarkBlue),
+                  ),
                 ),
               ],
             ),
