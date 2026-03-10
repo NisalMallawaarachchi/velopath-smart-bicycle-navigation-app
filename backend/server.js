@@ -11,6 +11,7 @@ import notificationRoutes from "./routes/notifications.routes.js";
 import poiRoutes from "./routes/poiRoutes.js";
 import routingRoutes from "./routes/routingRoutes.js"; // for /api/routing/generate
 import pgRoutingRoutes from "./routes/routing.js"; // for /api/routing/route
+import hazardDetectionRoutes from "./routes/hazardRoutes.js"; // ML hazard detection
 
 // Services
 import DetectionProcessor from "./services/detectionProcessor.js";
@@ -30,7 +31,7 @@ app.use(
     methods: ["GET", "POST", "PUT", "DELETE"],
   })
 );
-app.use(express.json());
+app.use(express.json({ limit: "10mb" })); // Increased limit for sensor data
 app.use("/uploads", express.static("uploads"));
 
 // Routes
@@ -40,6 +41,7 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api", poiRoutes);
 app.use("/api/routing", routingRoutes);
 app.use("/api/pg-routing", pgRoutingRoutes);
+app.use("/api/hazard", hazardDetectionRoutes); // ML-based hazard detection
 
 // Health check
 app.get("/health", async (req, res) => {
@@ -74,7 +76,7 @@ app.get("/api/stats", async (req, res) => {
 const detectionProcessor = new DetectionProcessor();
 const decayService = new DecayService();
 
-// Cron job: Process ML detections every 30 seconds
+//Cron job: Process ML detections every 30 seconds
 cron.schedule("*/30 * * * * *", async () => {
   try {
     await detectionProcessor.processUnprocessedDetections();
@@ -123,6 +125,7 @@ app.listen(PORT, "0.0.0.0", () => {
   console.log(`📊 Health check: http://localhost:${PORT}/health`);
   console.log(`📈 Stats: http://localhost:${PORT}/api/stats`);
   console.log(`🗺️  Hazards API: http://localhost:${PORT}/api/hazards`);
+  console.log(`🤖 ML Hazard Detection: http://localhost:${PORT}/api/hazard`);
   console.log(
     `⚙️  Manual process: POST http://localhost:${PORT}/api/admin/process-detections`
   );

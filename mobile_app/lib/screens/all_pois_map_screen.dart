@@ -6,7 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'package:mobile_app/screens/add_poi_screen.dart';
 import 'package:geolocator/geolocator.dart';
-
+import '../config/api_config.dart';
 
 
 class AllPOIsMapScreen extends StatefulWidget {
@@ -68,7 +68,7 @@ class _AllPOIsMapScreenState extends State<AllPOIsMapScreen> {
 
   Future<void> fetchPOIs() async {
     try {
-      final response = await http.get(Uri.parse('http://10.75.197.44:5001/api/pois'));
+      final response = await http.get(Uri.parse(ApiConfig.pois));
       if (response.statusCode == 200) {
         setState(() {
           pois = json.decode(response.body);
@@ -187,8 +187,8 @@ class _AllPOIsMapScreenState extends State<AllPOIsMapScreen> {
               ),
               children: [
                 TileLayer(
-                  urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  subdomains: const ['a', 'b', 'c'],
+                  urlTemplate:  'https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'com.velopath.app',
                 ),
                 MarkerClusterLayerWidget(
                   options: MarkerClusterLayerOptions(

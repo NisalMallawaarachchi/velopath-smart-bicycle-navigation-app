@@ -44,7 +44,8 @@ function stitchRouteCoordinates(routeRows) {
 
   for (let i = 0; i < routeRows.length; i++) {
     const g = safeJsonGeom(routeRows[i].geojson);
-    if (!g || !Array.isArray(g.coordinates) || g.coordinates.length < 2) continue;
+    if (!g || !Array.isArray(g.coordinates) || g.coordinates.length < 2)
+      continue;
 
     const edge = g.coordinates;
 
@@ -113,9 +114,9 @@ function simplifyLine(coords, tolerance = 0.00003) {
 /* ================================================== */
 function mergeRouteSegments(routeRows, opts = {}) {
   const {
-    minMergeLengthM = 30,     // merge tiny edges (noise)
-    maxMergeAngleDeg = 10,    // merge if direction change is tiny
-    preferSameName = true,    // merge same named roads
+    minMergeLengthM = 30, // merge tiny edges (noise)
+    maxMergeAngleDeg = 10, // merge if direction change is tiny
+    preferSameName = true, // merge same named roads
   } = opts;
 
   const segments = [];
@@ -136,7 +137,9 @@ function mergeRouteSegments(routeRows, opts = {}) {
   let cur = {
     name: routeRows[0].name || null,
     length_m: Number(routeRows[0].length_m) || 0,
-    coords: Array.isArray(edgeCoords(routeRows[0])) ? [...edgeCoords(routeRows[0])] : [],
+    coords: Array.isArray(edgeCoords(routeRows[0]))
+      ? [...edgeCoords(routeRows[0])]
+      : [],
   };
 
   for (let i = 1; i < routeRows.length; i++) {
@@ -197,12 +200,16 @@ function classifyTurn(deltaDeg) {
   const a = Math.abs(d);
 
   if (a >= 165) return { type: "uturn", text: "Make a U-turn" };
-  if (a >= 120) return { type: "sharp", text: d > 0 ? "Sharp right" : "Sharp left" };
-  if (a >= 45)  return { type: "turn",  text: d > 0 ? "Turn right" : "Turn left" };
+  if (a >= 120)
+    return { type: "sharp", text: d > 0 ? "Sharp right" : "Sharp left" };
+  if (a >= 45)
+    return { type: "turn", text: d > 0 ? "Turn right" : "Turn left" };
 
   // keep vs slight (helps those “slight left/right”, “keep left/right” cases)
-  if (a >= 25)  return { type: "slight", text: d > 0 ? "Slight right" : "Slight left" };
-  if (a >= 10)  return { type: "keep",   text: d > 0 ? "Keep right" : "Keep left" };
+  if (a >= 25)
+    return { type: "slight", text: d > 0 ? "Slight right" : "Slight left" };
+  if (a >= 10)
+    return { type: "keep", text: d > 0 ? "Keep right" : "Keep left" };
 
   return null; // straight-ish
 }
@@ -236,8 +243,14 @@ function generateInstructionsFromSegments(segments) {
     const p2Arr = prev.coords[prev.coords.length - 1];
     const p3Arr = curr.coords[1];
 
-    const b1 = bearing({ lon: p1Arr[0], lat: p1Arr[1] }, { lon: p2Arr[0], lat: p2Arr[1] });
-    const b2 = bearing({ lon: p2Arr[0], lat: p2Arr[1] }, { lon: p3Arr[0], lat: p3Arr[1] });
+    const b1 = bearing(
+      { lon: p1Arr[0], lat: p1Arr[1] },
+      { lon: p2Arr[0], lat: p2Arr[1] },
+    );
+    const b2 = bearing(
+      { lon: p2Arr[0], lat: p2Arr[1] },
+      { lon: p3Arr[0], lat: p3Arr[1] },
+    );
     const delta = normalizeAngle(b2 - b1);
 
     const classified = classifyTurn(delta);
@@ -292,7 +305,11 @@ function generateInstructionsFromSegments(segments) {
 /* ================================================== */
 router.get("/route", async (req, res) => {
   try {
-    const { startLon, startLat, endLon, endLat } = req.query;
+    const { startLon, startLat, endLon, endLat, mode = "shortest" } = req.query;
+    const allowedModes = new Set(["shortest", "balanced", "safest", "scenic"]);
+    const safeMode = allowedModes.has(mode) ? mode : "shortest";
+
+    console.log("🧭 Routing mode:", safeMode);
 
     if (!startLon || !startLat || !endLon || !endLat) {
       return res.status(400).json({ error: "Missing coordinates" });
@@ -307,7 +324,7 @@ router.get("/route", async (req, res) => {
         ORDER BY geom <-> ST_SetSRID(ST_Point($1,$2),4326)
         LIMIT 1;
         `,
-        [lon, lat]
+        [lon, lat],
       );
 
     const s = await snap(startLon, startLat);
@@ -317,43 +334,113 @@ router.get("/route", async (req, res) => {
       return res.status(500).json({ error: "Snap failed" });
     }
 
-    const startNode = s.rows[0].id;
-    const endNode = e.rows[0].id;
+    const startNode = parseInt(s.rows[0].id);
+    const endNode = parseInt(e.rows[0].id);
+
+    console.log(`📌 [ROUTING] Nodes: ${startNode} (type: ${typeof startNode}) -> ${endNode} (type: ${typeof endNode})`);
 
     // ROUTING
-const routeQ = await db.query(
-  `
-  WITH r AS (
-    SELECT * FROM pgr_dijkstra(
-      'SELECT id, source, target, cost, COALESCE(reverse_cost, cost) AS reverse_cost FROM routing.ways',
-      $1::BIGINT,
-      $2::BIGINT,
-      false
-    )
-  )
-  SELECT
-    w.id,
-    w.name,
-    w.length_m,
-    ST_AsGeoJSON(w.geom) AS geojson,
-    r.seq
-  FROM r
-  JOIN routing.ways w ON r.edge = w.id
-  WHERE r.edge <> -1
-  ORDER BY r.seq;
-  `,
-  [startNode, endNode]
-);
+    // General mathematical structure: C(e) = w_d * Distance + w_s * HazardRisk + w_q * RoadDifficulty - w_sc * ScenicValue
+
+    let w_d = 1.0;
+    let w_s = 0.0;
+    let w_q = 0.0; // Currently disabled as no surface data exists in table
+    let w_sc = 0.0;
+
+    if (safeMode === "safest") {
+      w_d = 0.4;
+      w_s = 0.6;
+    } else if (safeMode === "scenic") {
+      w_d = 0.4;
+      w_sc = 0.6;
+    } else if (safeMode === "balanced") {
+      w_d = 0.4;
+      w_s = 0.3;
+      w_sc = 0.3;
+    } // else shortest (defaults above)
+
+    // Bounding Box: dynamically expand based on euclidean trip distance
+    const distDeg = Math.sqrt(Math.pow(endLon - startLon, 2) + Math.pow(endLat - startLat, 2));
+    const expandDeg = Math.max(0.15, distDeg * 1.5);
+
+    // Multiplicative Cost formula
+    let costExpr = `length_m * ${w_d}`;
+    let hazardExpr = w_s > 0 ? `(1.0 + (${w_s} * COALESCE((SELECT COUNT(*) FROM public.hazards h WHERE ST_DWithin(w.geom, h.location, 0.0005)), 0) * 10.0))` : `1.0`;
+    let scenicExpr = w_sc > 0 ? `GREATEST(0.01, 1.0 - (${w_sc} * COALESCE((SELECT SUM(p.score) FROM public.custom_pois p WHERE ST_DWithin(w.geom, p.geom, 0.001)), 0) / 5.0))` : `1.0`;
+
+    const bboxFilter = `ST_Intersects(w.geom, ST_Expand(ST_SetSRID(ST_MakeBox2D(ST_Point(${startLon}, ${startLat}), ST_Point(${endLon}, ${endLat})), 4326), ${expandDeg}))`;
+
+    const edgeSqlBbox = `
+      SELECT id, source, target,
+        (${costExpr} * ${hazardExpr} * ${scenicExpr}) AS cost,
+        (${costExpr} * ${hazardExpr} * ${scenicExpr}) AS reverse_cost
+      FROM routing.ways w
+      WHERE source IS NOT NULL AND target IS NOT NULL
+        AND ${bboxFilter}
+    `;
+
+    // NOTE: Node IDs are embedded directly to avoid parameterized query issues with pgr_dijkstra
+    const outerQuery = (innerEdgeSql) => `
+SELECT w.id, w.length_m, w.name,
+  EXISTS (SELECT 1 FROM public.hazards h WHERE ST_DWithin(w.geom, h.location, 0.0005)) AS has_hazard,
+  COALESCE((SELECT AVG(p.score) FROM public.custom_pois p WHERE ST_DWithin(w.geom, p.geom, 0.0005)), 0) AS poi_score,
+  ST_AsGeoJSON(CASE WHEN r.node = w.target THEN ST_Reverse(w.geom) ELSE w.geom END) AS geojson,
+  r.seq
+FROM pgr_dijkstra($$ ${innerEdgeSql} $$, ${startNode}, ${endNode}, true) AS r
+JOIN routing.ways w ON r.edge = w.id
+ORDER BY r.seq;
+`;
+
+    // Attempt 1: bbox-filtered with full cost formula
+    console.log(`🧭 [ROUTING] Attempt 1: bbox=${expandDeg.toFixed(3)}° with full cost formula`);
+    let routeQ = { rows: [] };
+    try {
+      routeQ = await db.query(outerQuery(edgeSqlBbox));
+      console.log(`   Attempt 1 result: ${routeQ.rows.length} rows`);
+    } catch (err) {
+      console.log(`⚠️ [ROUTING] Attempt 1 failed: ${err.message.substring(0, 200)}`);
+    }
+
+    // Attempt 2: full table with simple length_m cost (fast, always finds a path if one exists)
+    if (!routeQ.rows.length) {
+      console.log(`🧭 [ROUTING] Attempt 2: full table with simple cost`);
+      const edgeSqlSimple = `SELECT id, source, target, length_m AS cost, length_m AS reverse_cost FROM routing.ways WHERE source IS NOT NULL AND target IS NOT NULL`;
+      try {
+        routeQ = await db.query(outerQuery(edgeSqlSimple));
+        console.log(`   Attempt 2 result: ${routeQ.rows.length} rows`);
+      } catch (err) {
+        console.log(`⚠️ [ROUTING] Attempt 2 failed: ${err.message.substring(0, 200)}`);
+      }
+    }
+
+    if (routeQ.rows.length) {
+      console.log(`✅ [ROUTING] Found path: ${routeQ.rows.length} segments`);
+    }
 
     if (!routeQ.rows.length) {
       return res.json({ error: "No path found" });
     }
 
-    // DISTANCE
+    // ===== COMPUTE TOTALS =====
+
+    // Distance
     const totalMeters = routeQ.rows.reduce(
       (sum, r) => sum + Number(r.length_m || 0),
-      0
+      0,
     );
+
+    // Hazard count + POI total
+    let totalHazards = 0;
+    let totalPoiScore = 0;
+
+    routeQ.rows.forEach((r) => {
+      if (r.has_hazard) totalHazards++;
+      totalPoiScore += Number(r.poi_score || 0);
+    });
+
+    // Average POI score
+    const avgPoiScore =
+      routeQ.rows.length > 0 ? totalPoiScore / routeQ.rows.length : 0;
 
     // GEOMETRY (single polyline)
     const stitched = stitchRouteCoordinates(routeQ.rows);
@@ -364,8 +451,16 @@ const routeQ = await db.query(
       coordinates: deduped,
     }).coordinates;
 
-    // simplify a bit to reduce visual artifacts
-    const geometry = simplifyLine(cleaned, 0.00003);
+    const geometry = [...cleaned];
+
+    // Anchor the polyline exactly to the user's requested Start and End coordinates 
+    // to prevent Flutter mapping gaps from drawing detached straight lines.
+    if (startLon && startLat) {
+       geometry.unshift([Number(startLon), Number(startLat)]);
+    }
+    if (endLon && endLat) {
+       geometry.push([Number(endLon), Number(endLat)]);
+    }
 
     // INSTRUCTIONS (merge tiny segments + better turn labels)
     const segments = mergeRouteSegments(routeQ.rows, {
@@ -376,14 +471,55 @@ const routeQ = await db.query(
 
     const instructions = generateInstructionsFromSegments(segments);
 
+    // ==========================================
+    // EXTRACT POIS & HAZARDS ALONG THE ROUTE NATIVELY
+    // ==========================================
+    let routePoisRows = [];
+    let routeHazardsRows = [];
+    
+    // Convert the exact geometry array into a PostGIS LineString for localized queries
+    if (geometry && geometry.length > 1) {
+      const lineStringWKT = `SRID=4326;LINESTRING(${geometry.map((c) => `${c[0]} ${c[1]}`).join(", ")})`;
+
+      // Fetch Top 5 POIs along this precise route
+      const routePoisQ = await db.query(
+        `
+        SELECT id, name, amenity, score, vote_count, ST_Y(geom) as lat, ST_X(geom) as lon
+        FROM public.custom_pois
+        WHERE ST_DWithin(geom, ST_GeomFromEWKT($1), 0.001) -- within ~100m
+        ORDER BY score DESC, vote_count DESC
+        LIMIT 5;
+        `,
+        [lineStringWKT]
+      );
+      routePoisRows = routePoisQ.rows;
+
+      // Fetch Top 5 Hazards along this precise route, ensuring id is cast to string and hazard_type is selected
+      const routeHazardsQ = await db.query(
+        `
+        SELECT id::text, hazard_type as type, confidence_score, ST_Y(location) as lat, ST_X(location) as lon
+        FROM public.hazards
+        WHERE ST_DWithin(location, ST_GeomFromEWKT($1), 0.0005) -- within ~50m
+          AND status IN ('pending', 'verified')
+        ORDER BY confidence_score DESC
+        LIMIT 5;
+        `,
+        [lineStringWKT]
+      );
+      routeHazardsRows = routeHazardsQ.rows;
+    }
+
     // RESPONSE
     res.json({
-      startNode,
-      endNode,
-      geometry, // [lon,lat]
+      mode: safeMode,
+      geometry,
       instructions,
+      pois: routePoisRows,
+      hazards: routeHazardsRows,
       summary: {
-        totalDistanceKm: totalMeters / 1000.0,
+        totalDistanceKm: totalMeters / 1000,
+        totalHazards,
+        avgPoiScore,
       },
     });
   } catch (err) {
@@ -393,3 +529,4 @@ const routeQ = await db.query(
 });
 
 export default router;
+

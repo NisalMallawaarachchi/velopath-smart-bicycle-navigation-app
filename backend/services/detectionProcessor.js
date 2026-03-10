@@ -19,7 +19,13 @@ export default class DetectionProcessor {
         LIMIT 100
       `);
 
-      console.log(`[DetectionProcessor] Found ${result.rows.length} unprocessed detections`);
+      if (result.rows.length > 0) {
+        console.log(`\n⚙️  ═══════════════════════════════════════`);
+        console.log(`⚙️  [CRON] Found ${result.rows.length} unprocessed detections`);
+        console.log(`⚙️  ═══════════════════════════════════════`);
+      } else {
+        console.log(`[DetectionProcessor] Found 0 unprocessed detections`);
+      }
 
       for (const detection of result.rows) {
         await this.processDetection(detection, client);
@@ -46,10 +52,10 @@ export default class DetectionProcessor {
 
       if (nearbyHazard) {
         await this.updateHazard(nearbyHazard.id, detection, client);
-        console.log(`[DetectionProcessor] Updated hazard ${nearbyHazard.id}`);
+        console.log(`   🔄 [CRON] Updated existing hazard #${nearbyHazard.id} (${detection.hazard_type}) — ${nearbyHazard.distance?.toFixed(1)}m away`);
       } else {
         const newHazard = await this.createHazard(detection, client);
-        console.log(`[DetectionProcessor] Created new hazard ${newHazard.id}`);
+        console.log(`   🆕 [CRON] Created NEW hazard #${newHazard.id} — ${detection.hazard_type} at (${detection.latitude}, ${detection.longitude})`);
       }
 
       await client.query(
@@ -69,14 +75,14 @@ export default class DetectionProcessor {
       SELECT 
         id, confidence_score, detection_count,
         ST_Distance(
-          location,
+          location::geography,
           ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography
         ) as distance
       FROM hazards
       WHERE hazard_type = $3
         AND status != 'expired'
         AND ST_DWithin(
-          location,
+          location::geography,
           ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography,
           $4
         )
@@ -122,7 +128,7 @@ export default class DetectionProcessor {
       INSERT INTO hazards (
         location, hazard_type, confidence_score, detection_count, last_updated
       ) VALUES (
-        ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography,
+        ST_SetSRID(ST_MakePoint($1, $2), 4326),
         $3,
         $4,
         1,

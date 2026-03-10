@@ -3,18 +3,18 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:mobile_app/screens/poidetails_screen.dart';
 
-
-
 class POIMapScreen extends StatefulWidget {
   final LatLng startPoint;
   final dynamic selectedPoi;
   final List<dynamic>? otherPois;
+  final Function(int)? onLoyaltyUpdated;
 
   const POIMapScreen({
     super.key,
     required this.startPoint,
     required this.selectedPoi,
     this.otherPois,
+    this.onLoyaltyUpdated,
   });
 
   @override
@@ -27,15 +27,17 @@ class _POIMapScreenState extends State<POIMapScreen> {
   late LatLng poiLatLng;
   late LatLng userLatLng;
   late List<LatLng> routePoints;
+  late dynamic selectedPoi;
 
   @override
   void initState() {
     super.initState();
 
     userLatLng = widget.startPoint;
+    selectedPoi = widget.selectedPoi;
 
-    final latRaw = widget.selectedPoi['lat'];
-    final lonRaw = widget.selectedPoi['lon'];
+    final latRaw = selectedPoi['lat'];
+    final lonRaw = selectedPoi['lon'];
 
     double? poiLat;
     double? poiLon;
@@ -87,11 +89,28 @@ class _POIMapScreenState extends State<POIMapScreen> {
     }
   }
 
+  Future<void> openPOIDetails() async {
+    final updatedPoi = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => POIDetailsScreen(
+          poi: selectedPoi,
+          onLoyaltyUpdated: widget.onLoyaltyUpdated,
+        ),
+      ),
+    );
+
+    if (updatedPoi != null) {
+      setState(() {
+        selectedPoi = updatedPoi;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final poiName = widget.selectedPoi['name'] ?? "POI";
-    final poiAmenity = widget.selectedPoi['amenity'] ?? "";
-    
+    final poiName = selectedPoi['name'] ?? "POI";
+    final poiAmenity = selectedPoi['amenity'] ?? "";
 
     /// MARKERS
     final markers = <Marker>[
@@ -106,8 +125,7 @@ class _POIMapScreenState extends State<POIMapScreen> {
         point: poiLatLng,
         width: 40,
         height: 40,
-        child:
-            const Icon(Icons.location_on, size: 36, color: Colors.red),
+        child: const Icon(Icons.location_on, size: 36, color: Colors.red),
       ),
     ];
 
@@ -137,10 +155,13 @@ class _POIMapScreenState extends State<POIMapScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(poiName),
+        title: Text(
+          poiName,
+          style: const TextStyle(color: Colors.white),
+        ),
+        iconTheme: const IconThemeData(color: Colors.white), // back arrow white
         backgroundColor: const Color.fromARGB(255, 18, 68, 82),
       ),
-
       body: FlutterMap(
         mapController: _mapController,
         options: MapOptions(
@@ -155,7 +176,6 @@ class _POIMapScreenState extends State<POIMapScreen> {
                 'https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png',
             userAgentPackageName: 'com.velopath.app',
           ),
-
           PolylineLayer(
             polylines: [
               Polyline(
@@ -165,21 +185,16 @@ class _POIMapScreenState extends State<POIMapScreen> {
               ),
             ],
           ),
-
           MarkerLayer(markers: markers),
         ],
       ),
-
-      /// BIGGER BOTTOM SHEET + BUTTONS
       bottomSheet: Container(
-        height: 160, // ⬅ Increased height
+        height: 160,
         padding: const EdgeInsets.all(16),
         decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-          boxShadow: [
-            BoxShadow(color: Colors.black12, blurRadius: 6)
-          ],
+          boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 6)],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -189,39 +204,24 @@ class _POIMapScreenState extends State<POIMapScreen> {
               style: const TextStyle(
                   fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            Text("$poiAmenity • ${widget.selectedPoi['district'] ?? ''}"),
-
- 
-
+            Text("$poiAmenity • ${selectedPoi['district'] ?? ''}"),
             const SizedBox(height: 12),
-
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                
                 ElevatedButton(
-  style: ElevatedButton.styleFrom(
-    backgroundColor: const Color.fromARGB(255, 35, 111, 122),
-    foregroundColor: Colors.white, // ⬅ WHITE TEXT
-  ),
-  onPressed: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => POIDetailsScreen(poi: widget.selectedPoi),
-      ),
-    );
-  },
-  child: const Text("View Details"),
-),
-
-                
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color.fromARGB(255, 35, 111, 122),
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: openPOIDetails,
+                  child: const Text("View Details"),
+                ),
                 ElevatedButton.icon(
                   onPressed: () => _mapController.move(userLatLng, 15),
                   icon: const Icon(Icons.my_location),
                   label: const Text("My Location"),
                 ),
-              
               ],
             )
           ],
