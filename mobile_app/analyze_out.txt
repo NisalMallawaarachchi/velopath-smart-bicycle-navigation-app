@@ -1,0 +1,22 @@
+Analyzing view_poi_screen.dart...                               
+
+   info - Unnecessary braces in a string interpolation - lib\screens\view_poi_screen.dart:198:58 - unnecessary_brace_in_string_interps
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\view_poi_screen.dart:239:66 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\view_poi_screen.dart:268:61 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\view_poi_screen.dart:278:55 - deprecated_member_use
+   info - Unnecessary braces in a string interpolation - lib\screens\view_poi_screen.dart:286:40 - unnecessary_brace_in_string_interps
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\view_poi_screen.dart:304:61 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\view_poi_screen.dart:312:51 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\view_poi_screen.dart:339:61 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\view_poi_screen.dart:364:68 - deprecated_member_use
+   info - Unnecessary braces in a string interpolation - lib\screens\view_poi_screen.dart:388:38 - unnecessary_brace_in_string_interps
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\view_poi_screen.dart:401:72 - deprecated_member_use
+  error - Function expressions can't be named - lib\screens\view_poi_screen.dart:422:44 - named_function_expression
+  error - The await expression can only be used in an async function - lib\screens\view_poi_screen.dart:423:50 - await_in_wrong_context
+  error - The '===' operator is not supported - lib\screens\view_poi_screen.dart:424:46 - unsupported_operator
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\view_poi_screen.dart:451:68 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\view_poi_screen.dart:508:63 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\view_poi_screen.dart:567:50 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\view_poi_screen.dart:579:33 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\view_poi_screen.dart:599:50 - deprecated_member_use
+

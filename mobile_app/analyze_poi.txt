@@ -1,0 +1,20 @@
+Analyzing poi_screen.dart...                                    
+
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\poi_screen.dart:276:52 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\poi_screen.dart:282:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\poi_screen.dart:339:34 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\poi_screen.dart:366:44 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\poi_screen.dart:368:63 - deprecated_member_use
+   info - Unnecessary braces in a string interpolation - lib\screens\poi_screen.dart:387:32 - unnecessary_brace_in_string_interps
+   info - Unnecessary braces in a string interpolation - lib\screens\poi_screen.dart:387:45 - unnecessary_brace_in_string_interps
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\poi_screen.dart:395:71 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\poi_screen.dart:395:103 - deprecated_member_use
+   info - Unnecessary braces in a string interpolation - lib\screens\poi_screen.dart:409:78 - unnecessary_brace_in_string_interps
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\poi_screen.dart:437:28 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\poi_screen.dart:507:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\poi_screen.dart:537:40 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\poi_screen.dart:643:62 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\poi_screen.dart:665:63 - deprecated_member_use
+   info - Unnecessary braces in a string interpolation - lib\screens\poi_screen.dart:672:39 - unnecessary_brace_in_string_interps
+   info - Unnecessary braces in a string interpolation - lib\screens\poi_screen.dart:686:37 - unnecessary_brace_in_string_interps
+

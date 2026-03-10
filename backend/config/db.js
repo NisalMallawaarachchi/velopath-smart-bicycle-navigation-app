@@ -1,22 +1,33 @@
 // config/db.js
 import pkg from "pg";
 import dotenv from "dotenv";
+
 dotenv.config();
 
 const { Pool } = pkg;
+
+const isSupabase =
+  (process.env.PGHOST || "").includes("supabase.com") ||
+  (process.env.PGHOST || "").includes("supabase.co");
 
 const pool = new Pool({
   user: process.env.PGUSER,
   host: process.env.PGHOST,
   database: process.env.PGDATABASE,
   password: process.env.PGPASSWORD,
-  port: process.env.PGPORT,
+  port: Number(process.env.PGPORT || 5432),
+  ssl: isSupabase ? { rejectUnauthorized: false } : false,
+
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 15000,
 });
 
 pool
   .connect()
   .then((client) => {
     console.log("✅ Connected to PostgreSQL + PostGIS successfully!");
+    console.log(`📍 Connected to: ${process.env.PGHOST}`);
     client.release();
   })
   .catch((err) => {
