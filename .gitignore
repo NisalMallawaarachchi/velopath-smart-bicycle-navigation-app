@@ -1,17 +1,26 @@
-# =========================
-# 🌐 Global settings
-# =========================
-# OS generated files
+# =========================================================
+# 🌐 Global OS files
+# =========================================================
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# IDEs and editors
+# =========================================================
+# 💻 IDEs / Editors
+# =========================================================
 .vscode/
 .idea/
+*.iml
+*.ipr
+*.iws
 *.swp
+*.swo
+.atom/
+.history/
 
-# Logs and temp files
+# =========================================================
+# 📄 Logs & Temporary files
+# =========================================================
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -23,68 +32,93 @@ pnpm-debug.log*
 .tmp/
 temp/
 .cache/
-coverage/
 
-# Environment variables
+# =========================================================
+# 🔐 Environment variables
+# =========================================================
 .env
 .env.*
 !.env.example
 
-# =========================
-# 📱 Flutter (mobile_app)
-# =========================
-/mobile_app/.dart_tool/
-/mobile_app/.flutter-plugins
-/mobile_app/.flutter-plugins-dependencies
-/mobile_app/.packages
-/mobile_app/build/
-/mobile_app/ios/Flutter/Flutter.framework
-/mobile_app/ios/Flutter/Flutter.podspec
-/mobile_app/ios/Flutter/Generated.xcconfig
-/mobile_app/ios/ServiceDefinitions.json
-/mobile_app/ios/Pods/
-/mobile_app/ios/.symlinks/
-/mobile_app/ios/Runner.xcworkspace/
-/mobile_app/android/.gradle/
-/mobile_app/android/local.properties
-/mobile_app/android/app/key.properties
-/mobile_app/pubspec.lock
+# =========================================================
+# 📱 Flutter / Dart (mobile_app)
+# =========================================================
+mobile_app/.dart_tool/
+mobile_app/.flutter-plugins
+mobile_app/.flutter-plugins-dependencies
+mobile_app/.packages
+mobile_app/.pub-cache/
+mobile_app/.pub/
 
-# =========================
-# ⚙️ Node.js (backend)
-# =========================
-/backend/node_modules/
-/backend/dist/
-/backend/build/
-/backend/.env
-/backend/.DS_Store
-/backend/npm-debug.log
-/backend/yarn.lock
-/backend/.eslintcache
+mobile_app/build/
+mobile_app/pubspec.lock
 
-# =========================
+mobile_app/ios/Flutter/Flutter.framework
+mobile_app/ios/Flutter/Flutter.podspec
+mobile_app/ios/Flutter/Generated.xcconfig
+mobile_app/ios/ServiceDefinitions.json
+mobile_app/ios/Pods/
+mobile_app/ios/.symlinks/
+mobile_app/ios/Runner.xcworkspace/
+mobile_app/ios/Flutter/.last_build_id
+
+mobile_app/android/.gradle/
+mobile_app/android/local.properties
+mobile_app/android/app/key.properties
+
+# Android build outputs
+mobile_app/android/app/debug/
+mobile_app/android/app/profile/
+mobile_app/android/app/release/
+
+# =========================================================
+# ⚙️ Node.js Backend
+# =========================================================
+backend/node_modules/
+backend/dist/
+backend/build/
+backend/.env
+backend/npm-debug.log
+backend/yarn.lock
+backend/.eslintcache
+
+# =========================================================
 # 🗃️ Database
-# =========================
-/database/*.bak
-/database/*.log
-/database/*.sql~
-/database/.pgdata/
-/database/data/
-/database/dumps/
+# =========================================================
+database/*.bak
+database/*.log
+database/*.sql~
+database/.pgdata/
+database/data/
+database/dumps/
 
-# =========================
-# 🧪 Testing
-# =========================
-/coverage/
-/test-results/
+# =========================================================
+# 🧪 Testing / Coverage
+# =========================================================
+coverage/
+test-results/
 
-# =========================
-# 🧠 Misc
-# =========================
-/*.iml
-*.iml
-*.ipr
-*.iws
+# =========================================================
+# 📦 Build Artifacts (General)
+# =========================================================
+build/
+*.class
+*.pyc
+.build/
+.buildlog/
 
+# =========================================================
+# 📊 Map / OSM data (large files)
+# =========================================================
 backend/osm_data/
-backend/osm_data/
+
+# =========================================================
+# 📑 Documentation builds
+# =========================================================
+doc/api/
+
+# =========================================================
+# 📱 Flutter symbolication / obfuscation
+# =========================================================
+app.*.symbols
+app.*.map.json
