@@ -14,7 +14,7 @@ import pgRoutingRoutes from "./routes/routing.js"; // for /api/routing/route
 import hazardDetectionRoutes from "./routes/hazardRoutes.js"; // ML hazard detection
 
 // Services
-import DetectionProcessor from "./services/DetectionProcessor.js";
+import DetectionProcessor from "./services/detectionProcessor.js";
 import DecayService from "./services/decayService.js";
 
 // Database
