@@ -1,12 +1,53 @@
 import pool from "../config/db.js";
 
+// ── Validation helpers ────────────────────────────────────────────────────────
+
+/** Returns true if the string contains any digit */
+const containsNumbers = (str) => /\d/.test(str);
+
+/**
+ * Validates a text-only field.
+ * @param {string|undefined} value
+ * @param {string} fieldName  – used in the error message
+ * @param {boolean} required  – if false, empty/null values are allowed
+ * @returns {string|null}  error message, or null if valid
+ */
+const validateTextField = (value, fieldName, required = true) => {
+  if (required && (!value || value.trim().length === 0))
+    return `${fieldName} is required`;
+  if (value && value.trim().length > 0 && containsNumbers(value))
+    return `${fieldName} must not contain numbers`;
+  return null;
+};
+
+// ── Controllers ───────────────────────────────────────────────────────────────
+
 // Add a new POI
 export const addPOI = async (req, res) => {
   try {
     const { name, amenity, description, lat, lon, district, deviceId } = req.body;
 
+    // ── Required field presence ──
     if (!name || !amenity || !lat || !lon || !deviceId) {
       return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    // ── Text-only validation ──
+    const nameError = validateTextField(name, "Name");
+    if (nameError) return res.status(400).json({ error: nameError });
+
+    const amenityError = validateTextField(amenity, "Amenity");
+    if (amenityError) return res.status(400).json({ error: amenityError });
+
+    // Description is optional — only validate content if it was provided
+    const descError = validateTextField(description, "Description", false);
+    if (descError) return res.status(400).json({ error: descError });
+
+    // ── Coordinate sanity ──
+    const latNum = parseFloat(lat);
+    const lonNum = parseFloat(lon);
+    if (isNaN(latNum) || isNaN(lonNum)) {
+      return res.status(400).json({ error: "Invalid coordinates" });
     }
 
     const imageUrl = req.file ? req.file.path : null;
@@ -17,7 +58,16 @@ export const addPOI = async (req, res) => {
        (name, amenity, lat, lon, district, description, image_url, device_id)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
        RETURNING id`,
-      [name, amenity, lat, lon, district, description, imageUrl, deviceId]
+      [
+        name.trim(),
+        amenity.trim(),
+        latNum,
+        lonNum,
+        district ?? null,
+        description?.trim() ?? null,
+        imageUrl,
+        deviceId,
+      ]
     );
 
     const newPoiId = poiResult.rows[0].id;
@@ -26,7 +76,7 @@ export const addPOI = async (req, res) => {
     await pool.query(
       `INSERT INTO poi_notifications (poi_id, poi_name, amenity, district, added_by_device)
        VALUES ($1, $2, $3, $4, $5)`,
-      [newPoiId.toString(), name, amenity, district ?? "Unknown", deviceId]
+      [newPoiId.toString(), name.trim(), amenity.trim(), district ?? "Unknown", deviceId]
     );
 
     // Award loyalty points
