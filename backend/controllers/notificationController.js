@@ -1,4 +1,5 @@
 import NotificationService from "../services/notificationService.js";
+import ConfidenceCalculator from "../utils/ConfidenceCalculator.js";
 
 const notificationService = new NotificationService();
 
@@ -130,7 +131,9 @@ export const respondToHazard = async (req, res) => {
         [id, userId, action, `Quick response: ${response}`]
       );
 
-      const scoreChange = action === "confirm" ? 0.3 : -0.4;
+      const scoreChange = action === "confirm"
+        ? ConfidenceCalculator.SCORE_CHANGES.USER_CONFIRM
+        : ConfidenceCalculator.SCORE_CHANGES.USER_DENY;
 
       const result = await client.query(
         `UPDATE hazards

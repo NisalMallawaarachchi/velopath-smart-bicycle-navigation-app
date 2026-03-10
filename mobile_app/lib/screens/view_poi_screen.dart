@@ -54,7 +54,7 @@ class _POIsScreenState extends State<POIsScreen> {
     try {
       final deviceId = await getDeviceId();
 
-      String url = ApiConfig.notifications(deviceId);
+      String url = ApiConfig.poiNotifications(deviceId);
       if (_lastCheckedAt != null) {
         url += "?since=${Uri.encodeComponent(_lastCheckedAt!)}";
       }

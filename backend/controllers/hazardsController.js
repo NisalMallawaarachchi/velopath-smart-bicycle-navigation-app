@@ -117,8 +117,9 @@ export const getHazardById = async (req, res) => {
 // POST /api/hazards/:id/confirm
 export const confirmHazard = async (req, res) => {
   const { id } = req.params;
-  const { user_id, comment } = req.body;
-  if (!user_id) return res.status(400).json({ success: false, error: 'user_id is required' });
+  const user_id = req.user?.id;
+  const { comment } = req.body;
+  if (!user_id) return res.status(401).json({ success: false, error: 'Authentication required' });
 
   const client = await pool.connect();
   try {
@@ -175,8 +176,9 @@ export const confirmHazard = async (req, res) => {
 // POST /api/hazards/:id/deny
 export const denyHazard = async (req, res) => {
   const { id } = req.params;
-  const { user_id, comment } = req.body;
-  if (!user_id) return res.status(400).json({ success: false, error: 'user_id is required' });
+  const user_id = req.user?.id;
+  const { comment } = req.body;
+  if (!user_id) return res.status(401).json({ success: false, error: 'Authentication required' });
 
   const client = await pool.connect();
   try {
