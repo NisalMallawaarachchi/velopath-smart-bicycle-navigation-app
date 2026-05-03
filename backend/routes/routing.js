@@ -305,15 +305,21 @@ function generateInstructionsFromSegments(segments) {
 /* ================================================== */
 router.get("/route", async (req, res) => {
   try {
-    const { startLon, startLat, endLon, endLat, mode = "shortest" } = req.query;
+    const { mode = "shortest" } = req.query;
     const allowedModes = new Set(["shortest", "balanced", "safest", "scenic"]);
     const safeMode = allowedModes.has(mode) ? mode : "shortest";
 
-    console.log("🧭 Routing mode:", safeMode);
+    // Parse and validate all coordinate params before any SQL use
+    const startLon = parseFloat(req.query.startLon);
+    const startLat = parseFloat(req.query.startLat);
+    const endLon   = parseFloat(req.query.endLon);
+    const endLat   = parseFloat(req.query.endLat);
 
-    if (!startLon || !startLat || !endLon || !endLat) {
-      return res.status(400).json({ error: "Missing coordinates" });
+    if (isNaN(startLon) || isNaN(startLat) || isNaN(endLon) || isNaN(endLat)) {
+      return res.status(400).json({ error: "Missing or invalid coordinates" });
     }
+
+    console.log("🧭 Routing mode:", safeMode);
 
     // SNAP
     const snap = async (lon, lat) =>
