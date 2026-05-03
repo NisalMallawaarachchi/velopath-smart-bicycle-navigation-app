@@ -39,7 +39,7 @@ class ApiConfig {
       "$baseUrl/api/notifications/$id/respond";
 
   // ── Routing ──────────────────────────────────────
-  static const String route = "$baseUrl/api/routing/route";
+  static const String route = "$baseUrl/api/pg-routing/route";
 
   // ── ML Hazard Detection ──────────────────────────
   static const String mlHazardHealth = "$baseUrl/api/hazard/health";
