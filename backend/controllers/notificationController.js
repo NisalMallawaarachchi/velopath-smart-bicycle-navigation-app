@@ -5,15 +5,21 @@ const notificationService = new NotificationService();
 
 /**
  * GET approaching hazards
+ * userId sourced from authenticated JWT token — not query param
  */
 export const getApproachingHazards = async (req, res) => {
-  const { lat, lon, userId } = req.query;
+  const { lat, lon } = req.query;
+  const userId = req.user?.id;
 
-  if (!lat || !lon || !userId) {
+  if (!lat || !lon) {
     return res.status(400).json({
       success: false,
-      error: "Missing required parameters: lat, lon, userId",
+      error: "Missing required parameters: lat, lon",
     });
+  }
+
+  if (!userId) {
+    return res.status(401).json({ success: false, error: "Authentication required" });
   }
 
   try {
@@ -28,7 +34,10 @@ export const getApproachingHazards = async (req, res) => {
         hazard.id,
         userId
       );
-      if (shouldPrompt) unresponded.push(hazard);
+      if (shouldPrompt) {
+        notificationService.markNotified(hazard.id, userId);
+        unresponded.push(hazard);
+      }
     }
 
     res.json({
@@ -44,15 +53,21 @@ export const getApproachingHazards = async (req, res) => {
 
 /**
  * GET passed hazards
+ * userId sourced from authenticated JWT token — not query param
  */
 export const getPassedHazards = async (req, res) => {
-  const { lat, lon, userId } = req.query;
+  const { lat, lon } = req.query;
+  const userId = req.user?.id;
 
-  if (!lat || !lon || !userId) {
+  if (!lat || !lon) {
     return res.status(400).json({
       success: false,
-      error: "Missing required parameters: lat, lon, userId",
+      error: "Missing required parameters: lat, lon",
     });
+  }
+
+  if (!userId) {
+    return res.status(401).json({ success: false, error: "Authentication required" });
   }
 
   try {
@@ -75,15 +90,21 @@ export const getPassedHazards = async (req, res) => {
 
 /**
  * POST respond to hazard
+ * userId sourced from authenticated JWT token — not request body
  */
 export const respondToHazard = async (req, res) => {
   const { id } = req.params;
-  const { userId, response } = req.body;
+  const { response } = req.body;
+  const userId = req.user?.id;
 
-  if (!userId || !response) {
+  if (!userId) {
+    return res.status(401).json({ success: false, error: "Authentication required" });
+  }
+
+  if (!response) {
     return res.status(400).json({
       success: false,
-      error: "Missing required fields: userId, response",
+      error: "Missing required field: response",
     });
   }
 
@@ -95,6 +116,8 @@ export const respondToHazard = async (req, res) => {
   }
 
   if (response === "skip") {
+    // Record the skip so MAX_NOTIFICATION_AGE cooldown applies
+    notificationService.markNotified(id, userId);
     return res.json({
       success: true,
       message: "Response skipped",
@@ -142,11 +165,12 @@ export const respondToHazard = async (req, res) => {
                ELSE GREATEST(0, confidence_score + $1)
              END,
              confirmation_count = confirmation_count + CASE WHEN $2='confirm' THEN 1 ELSE 0 END,
-             denial_count = denial_count + CASE WHEN $2='deny' THEN 1 ELSE 0 END,
+             denial_count       = denial_count       + CASE WHEN $2='deny'    THEN 1 ELSE 0 END,
              last_updated = NOW(),
              status = CASE
                WHEN confidence_score + $1 >= 0.80 THEN 'verified'
-               WHEN confidence_score + $1 < 0.50 THEN 'expired'
+               WHEN confidence_score + $1 >= 0.50 THEN 'pending'
+               WHEN confidence_score + $1 < 0.50  THEN 'expired'
                ELSE status
              END
          WHERE id = $3

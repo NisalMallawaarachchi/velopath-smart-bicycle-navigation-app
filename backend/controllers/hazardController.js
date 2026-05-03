@@ -10,9 +10,38 @@ import pool from "../config/db.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Path to Python interpreter — use env var, fallback to system python3
 const PYTHON_PATH = process.env.PYTHON_PATH || "python3";
 const ML_DIR = path.join(__dirname, "..", "ml");
+
+// Serialises concurrent writes to training_data.json — prevents race condition
+let _trainingWriteLock = Promise.resolve();
+
+function safeUnlink(filePath) {
+  try { fs.unlinkSync(filePath); } catch (_) { /* already gone */ }
+}
+
+function spawnPython(tempFile) {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(PYTHON_PATH, ["predict.py", tempFile], { cwd: ML_DIR });
+    let stdout = "";
+    let stderr = "";
+    proc.stdout.on("data", (d) => { stdout += d.toString(); });
+    proc.stderr.on("data", (d) => { stderr += d.toString(); });
+    proc.on("close", (code) => {
+      safeUnlink(tempFile);
+      if (code !== 0) return reject(new Error(stderr || "Python process failed"));
+      try {
+        resolve(JSON.parse(stdout));
+      } catch {
+        reject(new Error(`Failed to parse ML output: ${stdout.slice(0, 200)}`));
+      }
+    });
+    proc.on("error", (err) => {
+      safeUnlink(tempFile);
+      reject(err);
+    });
+  });
+}
 
 /**
  * Health check for ML service
@@ -62,67 +91,27 @@ export const predictHazard = async (req, res) => {
       });
     }
 
-    // Write sensor data to temp file
-    const tempFile = path.join(ML_DIR, `temp_${Date.now()}.json`);
+    const tempFile = path.join(ML_DIR, `temp_${Date.now()}_${Math.random().toString(36).slice(2)}.json`);
     fs.writeFileSync(tempFile, JSON.stringify(sensorData));
 
-    // Call Python predict script
-    const pythonProcess = spawn(PYTHON_PATH, ["predict.py", tempFile], {
-      cwd: ML_DIR,
-    });
+    try {
+      const result = await spawnPython(tempFile);
 
-    let stdout = "";
-    let stderr = "";
+      console.log(`🤖 [ML RESULT] Predictions: ${result.predictions?.length || 0} total`);
+      const hazardPreds = result.predictions?.filter(p => p.hazard_type !== 'smooth') || [];
+      console.log(`🤖 [ML RESULT] Hazards found: ${hazardPreds.length}`);
+      hazardPreds.forEach(h =>
+        console.log(`   🔴 ${h.hazard_type} at (${h.latitude}, ${h.longitude}) conf=${h.confidence}`)
+      );
 
-    pythonProcess.stdout.on("data", (data) => {
-      stdout += data.toString();
-    });
-
-    pythonProcess.stderr.on("data", (data) => {
-      stderr += data.toString();
-    });
-
-    pythonProcess.on("close", async (code) => {
-      // Clean up temp file
-      try {
-        fs.unlinkSync(tempFile);
-      } catch (e) {
-        console.error("Failed to clean up temp file:", e);
-      }
-
-      if (code !== 0) {
-        console.error("Python process error:", stderr);
-        return res.status(500).json({
-          success: false,
-          error: "ML prediction failed",
-          details: stderr,
-        });
-      }
-
-      try {
-        const result = JSON.parse(stdout);
-        console.log(`🤖 [ML RESULT] Predictions: ${result.predictions?.length || 0} total`);
-        const hazardPreds = result.predictions?.filter(p => p.hazard_type !== 'smooth') || [];
-        console.log(`🤖 [ML RESULT] Hazards found: ${hazardPreds.length}`);
-        hazardPreds.forEach(h => console.log(`   🔴 ${h.hazard_type} at (${h.latitude}, ${h.longitude}) conf=${h.confidence}`));
-
-        // Save hazard detections to ml_detections table
-        await saveDetectionsToDB(result, req.body.deviceId);
-
-        res.json(result);
-      } catch (e) {
-        res.status(500).json({
-          success: false,
-          error: "Failed to parse prediction result",
-          raw: stdout,
-        });
-      }
-    });
+      await saveDetectionsToDB(result, req.body.deviceId);
+      res.json(result);
+    } catch (mlError) {
+      console.error("ML prediction error:", mlError.message);
+      res.status(500).json({ success: false, error: "ML prediction failed", details: mlError.message });
+    }
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    res.status(500).json({ success: false, error: error.message });
   }
 };
 
@@ -140,48 +129,15 @@ export const getDemoPredict = async (req, res) => {
       });
     }
 
-    // Call Python predict script with demo file
-    const pythonProcess = spawn(PYTHON_PATH, ["predict.py", demoFile], {
-      cwd: ML_DIR,
-    });
-
-    let stdout = "";
-    let stderr = "";
-
-    pythonProcess.stdout.on("data", (data) => {
-      stdout += data.toString();
-    });
-
-    pythonProcess.stderr.on("data", (data) => {
-      stderr += data.toString();
-    });
-
-    pythonProcess.on("close", (code) => {
-      if (code !== 0) {
-        console.error("Python process error:", stderr);
-        return res.status(500).json({
-          success: false,
-          error: "ML prediction failed",
-          details: stderr,
-        });
-      }
-
-      try {
-        const result = JSON.parse(stdout);
-        res.json(result);
-      } catch (e) {
-        res.status(500).json({
-          success: false,
-          error: "Failed to parse prediction result",
-          raw: stdout,
-        });
-      }
-    });
+    try {
+      const result = await spawnPython(demoFile);
+      res.json(result);
+    } catch (mlError) {
+      console.error("Demo ML prediction error:", mlError.message);
+      res.status(500).json({ success: false, error: "ML prediction failed", details: mlError.message });
+    }
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    res.status(500).json({ success: false, error: error.message });
   }
 };
 
@@ -229,20 +185,25 @@ export const uploadLabeledData = async (req, res) => {
     
     if (mode === "train") {
       // TRAIN MODE: Append data to training_data.json
+      // Serialised via _trainingWriteLock to prevent race conditions on concurrent uploads
       const trainingFile = path.join(ML_DIR, "training_data.json");
-      
-      let existingData = [];
-      if (fs.existsSync(trainingFile)) {
-        try {
-          existingData = JSON.parse(fs.readFileSync(trainingFile, "utf-8"));
-        } catch (e) {
-          console.error("Failed to read existing training data:", e);
-        }
-      }
+      let totalReadings = 0;
 
-      // Append new data
-      const newData = [...existingData, ...sensorData];
-      fs.writeFileSync(trainingFile, JSON.stringify(newData, null, 2));
+      _trainingWriteLock = _trainingWriteLock.then(async () => {
+        let existingData = [];
+        if (fs.existsSync(trainingFile)) {
+          try {
+            existingData = JSON.parse(fs.readFileSync(trainingFile, "utf-8"));
+          } catch (e) {
+            console.error("Failed to read existing training data:", e);
+          }
+        }
+        const newData = [...existingData, ...sensorData];
+        fs.writeFileSync(trainingFile, JSON.stringify(newData, null, 2));
+        totalReadings = newData.length;
+      });
+      await _trainingWriteLock;
+      const newData = { length: totalReadings }; // only need length for response
 
       // Count labels
       const labelCounts = {};
@@ -262,67 +223,31 @@ export const uploadLabeledData = async (req, res) => {
           hasLabels: hasLabels,
         },
       });
+      // end of lock scope
     } else {
       // PREDICT MODE: Run ML prediction
-      const tempFile = path.join(ML_DIR, `temp_${Date.now()}.json`);
+      const tempFile = path.join(ML_DIR, `temp_${Date.now()}_${Math.random().toString(36).slice(2)}.json`);
       fs.writeFileSync(tempFile, JSON.stringify(sensorData));
 
-      const pythonProcess = spawn(PYTHON_PATH, ["predict.py", tempFile], {
-        cwd: ML_DIR,
-      });
+      try {
+        const result = await spawnPython(tempFile);
+        result.mode = "predict";
+        result.inputHadLabels = hasLabels;
 
-      let stdout = "";
-      let stderr = "";
+        console.log(`🤖 [ML RESULT] Total predictions: ${result.predictions?.length || 0}`);
+        const hazardPreds = result.predictions?.filter(p => p.hazard_type !== 'smooth') || [];
+        console.log(`🤖 [ML RESULT] Hazards detected: ${hazardPreds.length}`);
+        hazardPreds.forEach(h =>
+          console.log(`   🔴 ${h.hazard_type} at (${h.latitude}, ${h.longitude}) conf=${h.confidence}`)
+        );
+        console.log(`   🟢 Smooth readings: ${(result.predictions?.length || 0) - hazardPreds.length}`);
 
-      pythonProcess.stdout.on("data", (data) => {
-        stdout += data.toString();
-      });
-
-      pythonProcess.stderr.on("data", (data) => {
-        stderr += data.toString();
-      });
-
-      pythonProcess.on("close", async (code) => {
-        // Clean up temp file
-        try {
-          fs.unlinkSync(tempFile);
-        } catch (e) {
-          console.error("Failed to clean up temp file:", e);
-        }
-
-        if (code !== 0) {
-          console.error("Python process error:", stderr);
-          return res.status(500).json({
-            success: false,
-            error: "ML prediction failed",
-            details: stderr,
-          });
-        }
-
-        try {
-          const result = JSON.parse(stdout);
-          result.mode = "predict";
-          result.inputHadLabels = hasLabels;
-
-          console.log(`🤖 [ML RESULT] Total predictions: ${result.predictions?.length || 0}`);
-          const hazardPreds = result.predictions?.filter(p => p.hazard_type !== 'smooth') || [];
-          console.log(`🤖 [ML RESULT] Hazards detected: ${hazardPreds.length}`);
-          hazardPreds.forEach(h => console.log(`   🔴 ${h.hazard_type} at (${h.latitude}, ${h.longitude}) conf=${h.confidence}`));
-          const smoothCount = (result.predictions?.length || 0) - hazardPreds.length;
-          console.log(`   🟢 Smooth readings: ${smoothCount}`);
-
-          // Save hazard detections to ml_detections table
-          await saveDetectionsToDB(result, req.body.deviceId);
-
-          res.json(result);
-        } catch (e) {
-          res.status(500).json({
-            success: false,
-            error: "Failed to parse prediction result",
-            raw: stdout,
-          });
-        }
-      });
+        await saveDetectionsToDB(result, req.body.deviceId);
+        res.json(result);
+      } catch (mlError) {
+        console.error("ML prediction error:", mlError.message);
+        res.status(500).json({ success: false, error: "ML prediction failed", details: mlError.message });
+      }
     }
   } catch (error) {
     res.status(500).json({

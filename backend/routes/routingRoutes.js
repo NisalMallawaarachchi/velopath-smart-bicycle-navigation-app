@@ -1,11 +1,2 @@
-// routes/routingRoutes.js
-import express from "express";
-import { generateRoutes } from "../controllers/routingController.js";
-
-const router = express.Router();
-
-// GET /api/routing/generate
-router.get("/generate", generateRoutes);
-
-export default router;
-
+// routingRoutes.js — RETIRED
+// Route removed from server.js. See routes/routing.js for active routing endpoint.

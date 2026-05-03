@@ -4,18 +4,30 @@ import ConfidenceCalculator from '../utils/ConfidenceCalculator.js';
 
 // GET /api/hazards
 export const getHazards = async (req, res) => {
-  const { minLat, maxLat, minLon, maxLon, minConfidence = 0.5 } = req.query;
+  const { minLat, maxLat, minLon, maxLon } = req.query;
 
-  if (!minLat || !maxLat || !minLon || !maxLon) {
+  // Parse and validate all coordinate params
+  const minLatF = parseFloat(minLat);
+  const maxLatF = parseFloat(maxLat);
+  const minLonF = parseFloat(minLon);
+  const maxLonF = parseFloat(maxLon);
+  const minConfidence = parseFloat(req.query.minConfidence ?? 0.5);
+
+  if (
+    isNaN(minLatF) || isNaN(maxLatF) ||
+    isNaN(minLonF) || isNaN(maxLonF)
+  ) {
     return res.status(400).json({
       success: false,
-      error: 'Missing required parameters: minLat, maxLat, minLon, maxLon'
+      error: 'Missing or invalid parameters: minLat, maxLat, minLon, maxLon must be numbers',
     });
   }
 
+  const safeMinConfidence = isNaN(minConfidence) ? 0.5 : minConfidence;
+
   try {
     const result = await pool.query(`
-      SELECT 
+      SELECT
         id,
         ST_Y(location::geometry) as latitude,
         ST_X(location::geometry) as longitude,
@@ -33,13 +45,8 @@ export const getHazards = async (req, res) => {
           ST_MakeEnvelope($1, $2, $3, $4, 4326)
         )
       ORDER BY confidence_score DESC
-    `, [
-      parseFloat(minLon),
-      parseFloat(minLat),
-      parseFloat(maxLon),
-      parseFloat(maxLat),
-      parseFloat(minConfidence)
-    ]);
+      LIMIT 200
+    `, [minLonF, minLatF, maxLonF, maxLatF, safeMinConfidence]);
 
     res.json({
       success: true,
@@ -52,8 +59,8 @@ export const getHazards = async (req, res) => {
         status: h.status,
         detectionCount: h.detection_count,
         confirmationCount: h.confirmation_count,
-        lastUpdated: h.last_updated
-      }))
+        lastUpdated: h.last_updated,
+      })),
     });
   } catch (error) {
     console.error('[HazardsController] Error fetching hazards:', error);
@@ -67,7 +74,7 @@ export const getHazardById = async (req, res) => {
 
   try {
     const result = await pool.query(`
-      SELECT 
+      SELECT
         id,
         ST_Y(location::geometry) as latitude,
         ST_X(location::geometry) as longitude,
@@ -86,7 +93,9 @@ export const getHazardById = async (req, res) => {
       WHERE id = $1
     `, [id]);
 
-    if (!result.rows.length) return res.status(404).json({ success: false, error: 'Hazard not found' });
+    if (!result.rows.length) {
+      return res.status(404).json({ success: false, error: 'Hazard not found' });
+    }
 
     const h = result.rows[0];
     res.json({
@@ -104,10 +113,9 @@ export const getHazardById = async (req, res) => {
         lastUpdated: h.last_updated,
         lastConfirmed: h.last_confirmed,
         decayRate: parseFloat(h.decay_rate),
-        decayAccelerated: h.decay_accelerated
-      }
+        decayAccelerated: h.decay_accelerated,
+      },
     });
-
   } catch (error) {
     console.error('[HazardsController] Error fetching hazard:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -119,7 +127,10 @@ export const confirmHazard = async (req, res) => {
   const { id } = req.params;
   const user_id = req.user?.id;
   const { comment } = req.body;
-  if (!user_id) return res.status(401).json({ success: false, error: 'Authentication required' });
+
+  if (!user_id) {
+    return res.status(401).json({ success: false, error: 'Authentication required' });
+  }
 
   const client = await pool.connect();
   try {
@@ -135,24 +146,32 @@ export const confirmHazard = async (req, res) => {
     }
 
     await client.query(
-      'INSERT INTO user_confirmations (hazard_id, user_id, action, comment) VALUES ($1, $2, \'confirm\', $3)',
+      `INSERT INTO user_confirmations (hazard_id, user_id, action, comment)
+       VALUES ($1, $2, 'confirm', $3)`,
       [id, user_id, comment]
     );
 
     const result = await client.query(`
       UPDATE hazards
-      SET 
-        confidence_score = LEAST(1.0, confidence_score + $1),
-        confirmation_count = confirmation_count + 1,
-        last_confirmed = NOW(),
-        last_updated = NOW(),
-        decay_accelerated = FALSE,
-        status = CASE WHEN confidence_score + $1 >= 0.80 THEN 'verified' ELSE status END
+      SET
+        confidence_score    = LEAST(1.0, confidence_score + $1),
+        confirmation_count  = confirmation_count + 1,
+        last_confirmed      = NOW(),
+        last_updated        = NOW(),
+        decay_accelerated   = FALSE,
+        status = CASE
+          WHEN confidence_score + $1 >= 0.80 THEN 'verified'
+          WHEN confidence_score + $1 >= 0.50 THEN 'pending'
+          ELSE 'expired'
+        END
       WHERE id = $2
       RETURNING confidence_score, status
     `, [ConfidenceCalculator.SCORE_CHANGES.USER_CONFIRM, id]);
 
-    if (!result.rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ success: false, error: 'Hazard not found' }); }
+    if (!result.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: 'Hazard not found' });
+    }
 
     await client.query('COMMIT');
 
@@ -161,9 +180,8 @@ export const confirmHazard = async (req, res) => {
       hazard_id: id,
       new_confidence: parseFloat(result.rows[0].confidence_score).toFixed(3),
       status: result.rows[0].status,
-      message: 'Thank you for confirming this hazard'
+      message: 'Thank you for confirming this hazard',
     });
-
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('[HazardsController] Error confirming hazard:', error);
@@ -178,7 +196,10 @@ export const denyHazard = async (req, res) => {
   const { id } = req.params;
   const user_id = req.user?.id;
   const { comment } = req.body;
-  if (!user_id) return res.status(401).json({ success: false, error: 'Authentication required' });
+
+  if (!user_id) {
+    return res.status(401).json({ success: false, error: 'Authentication required' });
+  }
 
   const client = await pool.connect();
   try {
@@ -187,22 +208,29 @@ export const denyHazard = async (req, res) => {
     await client.query(`
       INSERT INTO user_confirmations (hazard_id, user_id, action, comment)
       VALUES ($1, $2, 'deny', $3)
-      ON CONFLICT (hazard_id, user_id) DO UPDATE 
-      SET action='deny', comment=$3, timestamp=NOW()
+      ON CONFLICT (hazard_id, user_id) DO UPDATE
+        SET action = 'deny', comment = $3, timestamp = NOW()
     `, [id, user_id, comment]);
 
     const result = await client.query(`
       UPDATE hazards
-      SET 
+      SET
         confidence_score = GREATEST(0, confidence_score + $1),
-        denial_count = denial_count + 1,
-        last_updated = NOW(),
-        status = CASE WHEN confidence_score + $1 < 0.50 THEN 'expired' ELSE status END
+        denial_count     = denial_count + 1,
+        last_updated     = NOW(),
+        status = CASE
+          WHEN confidence_score + $1 >= 0.80 THEN 'verified'
+          WHEN confidence_score + $1 >= 0.50 THEN 'pending'
+          ELSE 'expired'
+        END
       WHERE id = $2
       RETURNING confidence_score, status
     `, [ConfidenceCalculator.SCORE_CHANGES.USER_DENY, id]);
 
-    if (!result.rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ success: false, error: 'Hazard not found' }); }
+    if (!result.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: 'Hazard not found' });
+    }
 
     await client.query('COMMIT');
 
@@ -211,9 +239,8 @@ export const denyHazard = async (req, res) => {
       hazard_id: id,
       new_confidence: parseFloat(result.rows[0].confidence_score).toFixed(3),
       status: result.rows[0].status,
-      message: 'Thank you for reporting. Hazard marked for removal.'
+      message: 'Thank you for reporting. Hazard status updated.',
     });
-
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('[HazardsController] Error denying hazard:', error);

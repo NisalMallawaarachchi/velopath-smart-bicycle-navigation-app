@@ -9,9 +9,9 @@ import authRoutes from "./routes/auth/auth.routes.js";
 import hazardsRouter from "./routes/hazardVerification/hazards.routes.js";
 import notificationRoutes from "./routes/notifications.routes.js";
 import poiRoutes from "./routes/poiRoutes.js";
-import routingRoutes from "./routes/routingRoutes.js"; // for /api/routing/generate
-import pgRoutingRoutes from "./routes/routing.js"; // for /api/routing/route
-import hazardDetectionRoutes from "./routes/hazardRoutes.js"; // ML hazard detection
+import pgRoutingRoutes from "./routes/routing.js";
+import hazardDetectionRoutes from "./routes/hazardRoutes.js";
+import { authenticateToken } from "./middlewares/auth.middleware.js";
 
 // Services
 import DetectionProcessor from "./services/detectionProcessor.js";
@@ -25,9 +25,18 @@ dotenv.config();
 const app = express();
 
 // Middleware
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
+  : ["http://localhost:3000", "http://localhost:5001"];
+
 app.use(
   cors({
-    origin: "*",
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, curl, Postman)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      callback(new Error(`CORS: origin ${origin} not allowed`));
+    },
     methods: ["GET", "POST", "PUT", "DELETE"],
   })
 );
@@ -39,9 +48,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/hazards", hazardsRouter);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api", poiRoutes);
-app.use("/api/routing", routingRoutes);
 app.use("/api/pg-routing", pgRoutingRoutes);
-app.use("/api/hazard", hazardDetectionRoutes); // ML-based hazard detection
+app.use("/api/hazard", hazardDetectionRoutes);
 
 // Health check
 app.get("/health", async (req, res) => {
@@ -96,8 +104,8 @@ cron.schedule("0 */6 * * *", async () => {
   }
 });
 
-// Manual triggers for testing
-app.post("/api/admin/process-detections", async (req, res) => {
+// Manual triggers — admin only (JWT required)
+app.post("/api/admin/process-detections", authenticateToken, async (req, res) => {
   try {
     const result = await detectionProcessor.processUnprocessedDetections();
     res.json({ success: true, ...result });
@@ -106,7 +114,7 @@ app.post("/api/admin/process-detections", async (req, res) => {
   }
 });
 
-app.post("/api/admin/run-decay", async (req, res) => {
+app.post("/api/admin/run-decay", authenticateToken, async (req, res) => {
   try {
     const result = await decayService.runDecay();
     res.json({ success: true, ...result });

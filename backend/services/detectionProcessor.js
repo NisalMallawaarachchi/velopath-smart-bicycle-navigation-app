@@ -4,18 +4,17 @@ import ConfidenceCalculator from "../utils/ConfidenceCalculator.js";
 
 export default class DetectionProcessor {
   constructor() {
-    this.PROXIMITY_THRESHOLD = 10; // meters
+    this.PROXIMITY_THRESHOLD = 10; // metres
   }
 
-  // Main method: process all unprocessed detections
   async processUnprocessedDetections() {
     const client = await pool.connect();
 
     try {
       const result = await client.query(`
-        SELECT * FROM ml_detections 
-        WHERE processed = FALSE 
-        ORDER BY detected_at ASC 
+        SELECT * FROM ml_detections
+        WHERE processed = FALSE
+        ORDER BY detected_at ASC
         LIMIT 100
       `);
 
@@ -40,7 +39,6 @@ export default class DetectionProcessor {
     }
   }
 
-  // Process a single detection
   async processDetection(detection, client) {
     try {
       const nearbyHazard = await this.findNearbyHazard(
@@ -62,17 +60,15 @@ export default class DetectionProcessor {
         'UPDATE ml_detections SET processed = TRUE, processed_at = NOW() WHERE id = $1',
         [detection.id]
       );
-
     } catch (error) {
       console.error(`[DetectionProcessor] Error processing detection ${detection.id}:`, error);
       throw error;
     }
   }
 
-  // Find hazard within proximity
   async findNearbyHazard(lat, lon, type, client) {
     const result = await client.query(`
-      SELECT 
+      SELECT
         id, confidence_score, detection_count,
         ST_Distance(
           location::geography,
@@ -94,19 +90,22 @@ export default class DetectionProcessor {
   }
 
   async updateHazard(hazardId, detection, client) {
+    const delta = ConfidenceCalculator.SCORE_CHANGES.ML_DETECTION;
+
     const result = await client.query(`
       UPDATE hazards
-      SET 
+      SET
         confidence_score = LEAST(1.0, confidence_score + $1),
-        detection_count = detection_count + 1,
-        last_updated = NOW(),
-        status = CASE 
+        detection_count  = detection_count + 1,
+        last_updated     = NOW(),
+        status = CASE
           WHEN confidence_score + $1 >= 0.80 THEN 'verified'
-          ELSE status
+          WHEN confidence_score + $1 >= 0.50 THEN 'pending'
+          ELSE 'expired'
         END
       WHERE id = $2
       RETURNING *
-    `, [ConfidenceCalculator.SCORE_CHANGES.ML_DETECTION, hazardId]);
+    `, [delta, hazardId]);
 
     await client.query(`
       INSERT INTO processing_log (event_type, hazard_id, details)
@@ -116,30 +115,42 @@ export default class DetectionProcessor {
       JSON.stringify({
         new_confidence: result.rows[0].confidence_score,
         detection_id: detection.id,
-        detection_count: result.rows[0].detection_count
-      })
+        detection_count: result.rows[0].detection_count,
+      }),
     ]);
 
     return result.rows[0];
   }
 
   async createHazard(detection, client) {
+    const initialConfidence = ConfidenceCalculator.SCORE_CHANGES.ML_DETECTION;
+
+    // Resolve decay_rate from known types; default 0.020 for unknown types
+    const decayRates = ConfidenceCalculator.DECAY_RATES;
+    const decayRate = decayRates[detection.hazard_type] ?? 0.020;
+
     const result = await client.query(`
       INSERT INTO hazards (
-        location, hazard_type, confidence_score, detection_count, last_updated
+        location, hazard_type, confidence_score,
+        status, detection_count, first_detected, last_updated, decay_rate
       ) VALUES (
         ST_SetSRID(ST_MakePoint($1, $2), 4326),
         $3,
         $4,
+        $5,
         1,
-        NOW()
+        NOW(),
+        NOW(),
+        $6
       )
-      RETURNING id, hazard_type, confidence_score
+      RETURNING id, hazard_type, confidence_score, status
     `, [
       detection.longitude,
       detection.latitude,
       detection.hazard_type,
-      ConfidenceCalculator.SCORE_CHANGES.ML_DETECTION
+      initialConfidence,
+      ConfidenceCalculator.getStatus(initialConfidence),
+      decayRate,
     ]);
 
     await client.query(`
@@ -150,8 +161,9 @@ export default class DetectionProcessor {
       JSON.stringify({
         type: detection.hazard_type,
         source: 'ml_detection',
-        device_id: detection.device_id
-      })
+        device_id: detection.device_id,
+        decay_rate: decayRate,
+      }),
     ]);
 
     return result.rows[0];

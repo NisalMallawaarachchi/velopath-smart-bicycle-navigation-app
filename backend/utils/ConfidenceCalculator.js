@@ -1,19 +1,21 @@
 export default class ConfidenceCalculator {
   static THRESHOLDS = {
     VERIFIED: 0.80,
-    EXPIRED: 0.50,
-    DELETED: 0.20
+    PENDING:  0.50,
+    EXPIRED:  0.20,  // below this threshold hazards are deleted by cleanupExpired
   };
 
   static SCORE_CHANGES = {
-    ML_DETECTION: 0.15,
+    ML_DETECTION: 0.20,  // raised from 0.15 — initial score must be >= EXPIRED threshold
     USER_CONFIRM: 0.30,
-    USER_DENY: -0.40
+    USER_DENY:   -0.40,
   };
 
+  // Decay rates per day (k in: confidence(t) = C0 * e^(-k * days))
   static DECAY_RATES = {
-    pothole: 0.030,
-    bump: 0.008
+    pothole: 0.030,  // ~23 days to 50% confidence
+    bump:    0.008,  // ~87 days to 50% confidence
+    rough:   0.015,  // ~46 days to 50% confidence
   };
 
   static getCurrentConfidence(hazard) {
@@ -22,8 +24,7 @@ export default class ConfidenceCalculator {
       ? parseFloat(hazard.decay_rate) * 2
       : parseFloat(hazard.decay_rate);
     const currentScore = parseFloat(hazard.confidence_score);
-    const decayedConfidence = currentScore * Math.exp(-decayRate * daysSinceUpdate);
-    return Math.max(0, Math.min(1, decayedConfidence));
+    return Math.max(0, Math.min(1, currentScore * Math.exp(-decayRate * daysSinceUpdate)));
   }
 
   static shouldAccelerateDecay(hazard) {
@@ -39,13 +40,13 @@ export default class ConfidenceCalculator {
   static getStatus(confidence) {
     const score = parseFloat(confidence);
     if (score >= this.THRESHOLDS.VERIFIED) return 'verified';
-    if (score >= this.THRESHOLDS.EXPIRED) return 'pending';
+    if (score >= this.THRESHOLDS.PENDING)  return 'pending';
     return 'expired';
   }
 
   static getDaysSince(timestamp) {
     const then = new Date(timestamp);
-    const now = new Date();
+    const now  = new Date();
     return (now - then) / (1000 * 60 * 60 * 24);
   }
 }
