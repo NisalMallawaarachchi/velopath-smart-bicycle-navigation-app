@@ -1,6 +1,60 @@
 // controllers/hazardsController.js
+import fs   from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import pool from '../config/db.js';
 import ConfidenceCalculator from '../utils/ConfidenceCalculator.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const TRAINING_FILE = path.join(__dirname, '..', 'ml', 'training_data.json');
+
+// Shared write-lock so concurrent confirm/deny calls don't corrupt training_data.json
+let _trainingWriteLock = Promise.resolve();
+
+/**
+ * Fix 3: Append sensor windows from confirmed/denied hazards into training_data.json.
+ * Each reading in the window is stamped with the correct label before appending.
+ */
+async function appendToTrainingData(hazardId, confirmedLabel) {
+  // Find ml_detections within 10 m of this hazard that have stored windows
+  const rows = await pool.query(
+    `SELECT md.sensor_windows
+     FROM ml_detections md
+     JOIN hazards h ON h.id = $1
+     WHERE md.sensor_windows IS NOT NULL
+       AND md.hazard_type = h.hazard_type
+       AND ST_DWithin(
+         ST_SetSRID(ST_MakePoint(md.longitude, md.latitude), 4326)::geography,
+         h.location::geography,
+         10
+       )
+     ORDER BY md.detected_at DESC
+     LIMIT 3`,
+    [hazardId]
+  );
+
+  if (rows.rows.length === 0) return;
+
+  const newReadings = rows.rows.flatMap(row => {
+    const windows = row.sensor_windows;
+    if (!Array.isArray(windows)) return [];
+    return windows.map(r => ({ ...r, label: confirmedLabel }));
+  });
+
+  if (newReadings.length === 0) return;
+
+  _trainingWriteLock = _trainingWriteLock.then(() => {
+    let existing = [];
+    if (fs.existsSync(TRAINING_FILE)) {
+      try { existing = JSON.parse(fs.readFileSync(TRAINING_FILE, 'utf-8')); }
+      catch (_) { /* corrupt file — start fresh */ }
+    }
+    fs.writeFileSync(TRAINING_FILE, JSON.stringify([...existing, ...newReadings], null, 2));
+    console.log(`📚 [TRAINING] +${newReadings.length} readings labelled '${confirmedLabel}' from hazard ${hazardId}`);
+  });
+
+  await _trainingWriteLock;
+}
 
 // GET /api/hazards
 export const getHazards = async (req, res) => {
@@ -175,6 +229,15 @@ export const confirmHazard = async (req, res) => {
 
     await client.query('COMMIT');
 
+    // Fix 3: feed confirmed sensor windows back into training_data.json
+    const hazardType = result.rows[0].status; // we need hazard_type, fetch it
+    const hazardRow = await pool.query('SELECT hazard_type FROM hazards WHERE id = $1', [id]);
+    if (hazardRow.rows[0]) {
+      appendToTrainingData(id, hazardRow.rows[0].hazard_type).catch(e =>
+        console.error('[HazardsController] Training append error:', e.message)
+      );
+    }
+
     res.json({
       success: true,
       hazard_id: id,
@@ -233,6 +296,11 @@ export const denyHazard = async (req, res) => {
     }
 
     await client.query('COMMIT');
+
+    // Fix 3: a denial means the ML was wrong — label those windows 'smooth'
+    appendToTrainingData(id, 'smooth').catch(e =>
+      console.error('[HazardsController] Training append error:', e.message)
+    );
 
     res.json({
       success: true,

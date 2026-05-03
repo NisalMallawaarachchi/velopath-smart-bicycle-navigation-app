@@ -20,14 +20,23 @@ function safeUnlink(filePath) {
   try { fs.unlinkSync(filePath); } catch (_) { /* already gone */ }
 }
 
+// Fix 1: 30-second hard timeout — kills the Python process if it hangs
 function spawnPython(tempFile) {
   return new Promise((resolve, reject) => {
     const proc = spawn(PYTHON_PATH, ["predict.py", tempFile], { cwd: ML_DIR });
     let stdout = "";
     let stderr = "";
+
+    const timer = setTimeout(() => {
+      proc.kill("SIGKILL");
+      safeUnlink(tempFile);
+      reject(new Error("ML prediction timed out after 30 seconds"));
+    }, 30_000);
+
     proc.stdout.on("data", (d) => { stdout += d.toString(); });
     proc.stderr.on("data", (d) => { stderr += d.toString(); });
     proc.on("close", (code) => {
+      clearTimeout(timer);
       safeUnlink(tempFile);
       if (code !== 0) return reject(new Error(stderr || "Python process failed"));
       try {
@@ -37,10 +46,33 @@ function spawnPython(tempFile) {
       }
     });
     proc.on("error", (err) => {
+      clearTimeout(timer);
       safeUnlink(tempFile);
       reject(err);
     });
   });
+}
+
+// Fix 4: Validate each sensor reading before passing to Python
+function validateSensorData(sensorData) {
+  const errors = [];
+  for (let i = 0; i < sensorData.length; i++) {
+    const r = sensorData[i];
+    const fields = ["accelX", "accelY", "accelZ", "gyroX", "gyroY", "gyroZ"];
+    for (const f of fields) {
+      if (typeof r[f] !== "number" || !isFinite(r[f])) {
+        errors.push(`Reading ${i}: field '${f}' is missing or NaN`);
+        break;
+      }
+    }
+    if (typeof r.latitude === "number" && (r.latitude < -90 || r.latitude > 90)) {
+      errors.push(`Reading ${i}: latitude ${r.latitude} out of range`);
+    }
+    if (typeof r.longitude === "number" && (r.longitude < -180 || r.longitude > 180)) {
+      errors.push(`Reading ${i}: longitude ${r.longitude} out of range`);
+    }
+  }
+  return errors;
 }
 
 /**
@@ -91,6 +123,16 @@ export const predictHazard = async (req, res) => {
       });
     }
 
+    // Fix 4: validate before touching Python
+    const validationErrors = validateSensorData(sensorData);
+    if (validationErrors.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Sensor data validation failed",
+        details: validationErrors.slice(0, 5),
+      });
+    }
+
     const tempFile = path.join(ML_DIR, `temp_${Date.now()}_${Math.random().toString(36).slice(2)}.json`);
     fs.writeFileSync(tempFile, JSON.stringify(sensorData));
 
@@ -104,7 +146,7 @@ export const predictHazard = async (req, res) => {
         console.log(`   🔴 ${h.hazard_type} at (${h.latitude}, ${h.longitude}) conf=${h.confidence}`)
       );
 
-      await saveDetectionsToDB(result, req.body.deviceId);
+      await saveDetectionsToDB(result, req.body.deviceId, sensorData);
       res.json(result);
     } catch (mlError) {
       console.error("ML prediction error:", mlError.message);
@@ -180,6 +222,16 @@ export const uploadLabeledData = async (req, res) => {
       });
     }
 
+    // Fix 4: validate sensor fields before writing temp file or training data
+    const validationErrors = validateSensorData(sensorData);
+    if (validationErrors.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Sensor data validation failed",
+        details: validationErrors.slice(0, 5),
+      });
+    }
+
     // Check if data has labels
     const hasLabels = sensorData.some((r) => r.label && r.label !== "smooth");
     
@@ -242,7 +294,7 @@ export const uploadLabeledData = async (req, res) => {
         );
         console.log(`   🟢 Smooth readings: ${(result.predictions?.length || 0) - hazardPreds.length}`);
 
-        await saveDetectionsToDB(result, req.body.deviceId);
+        await saveDetectionsToDB(result, req.body.deviceId, sensorData);
         res.json(result);
       } catch (mlError) {
         console.error("ML prediction error:", mlError.message);
@@ -259,12 +311,12 @@ export const uploadLabeledData = async (req, res) => {
 
 /**
  * Save non-smooth ML predictions to ml_detections table.
- * The DetectionProcessor cron job will pick these up and create/update hazards.
+ * Fix 3: also stores the raw sensor window for each detection so that
+ * user confirmations can feed those windows back into training_data.json.
  */
-async function saveDetectionsToDB(result, deviceId) {
+async function saveDetectionsToDB(result, deviceId, sensorData = []) {
   if (!result?.success || !result?.predictions) return;
 
-  // Only save actual hazards (not smooth)
   const hazards = result.predictions.filter(
     (p) => p.hazard_type !== "smooth" && p.latitude && p.longitude
   );
@@ -275,27 +327,35 @@ async function saveDetectionsToDB(result, deviceId) {
   }
 
   console.log(`\n💾 ═══════════════════════════════════════`);
-  console.log(`💾 [DB SAVE] Saving ${hazards.length} hazard detections to ml_detections table`);
+  console.log(`💾 [DB SAVE] Saving ${hazards.length} hazard detections`);
 
   try {
     const client = await pool.connect();
     try {
       for (const h of hazards) {
+        // Slice the 10-reading window that produced this prediction so it can
+        // be used as training data if a user later confirms this hazard.
+        const start  = Math.max(0, (h.reading_index ?? 0) - 5);
+        const window = sensorData.length > 0
+          ? sensorData.slice(start, start + 10)
+          : null;
+
         await client.query(
-          `INSERT INTO ml_detections (latitude, longitude, hazard_type, detection_confidence, device_id)
-           VALUES ($1, $2, $3, $4, $5)`,
+          `INSERT INTO ml_detections
+             (latitude, longitude, hazard_type, detection_confidence, device_id, sensor_windows)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
           [
             h.latitude,
             h.longitude,
             h.hazard_type,
             h.confidence || 0.85,
             deviceId || "unknown",
+            window ? JSON.stringify(window) : null,
           ]
         );
         console.log(`   ✅ Saved: ${h.hazard_type} at (${h.latitude}, ${h.longitude})`);
       }
-      console.log(`💾 [DB SAVE] All ${hazards.length} detections saved successfully!`);
-      console.log(`💾 ═══════════════════════════════════════\n`);
+      console.log(`💾 [DB SAVE] All ${hazards.length} detections saved`);
       console.log(`⏳ Cron job will process these into hazards within 30 seconds...\n`);
     } finally {
       client.release();

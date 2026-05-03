@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/sensor_reading.dart';
 import '../../../../config/api_config.dart';
+import '../../../../widgets/device_helper.dart';
 
 /// Service for communicating with the VeloPath backend hazard detection API.
 class HazardApiService {
@@ -26,11 +27,12 @@ class HazardApiService {
       List<SensorReading> readings) async {
     try {
       final sensorData = readings.map((r) => r.toJson()).toList();
+      final deviceId = await getDeviceId();
       final response = await http
           .post(
             Uri.parse('$baseUrl/api/hazard/predict'),
             headers: {'Content-Type': 'application/json'},
-            body: json.encode({'sensorData': sensorData}),
+            body: json.encode({'sensorData': sensorData, 'deviceId': deviceId}),
           )
           .timeout(const Duration(seconds: 30));
       if (response.statusCode == 200) {
@@ -51,11 +53,16 @@ class HazardApiService {
       List<SensorReading> readings, String mode) async {
     try {
       final sensorData = readings.map((r) => r.toJson()).toList();
+      final deviceId = await getDeviceId();
       final response = await http
           .post(
             Uri.parse('$baseUrl/api/hazard/upload'),
             headers: {'Content-Type': 'application/json'},
-            body: json.encode({'sensorData': sensorData, 'mode': mode}),
+            body: json.encode({
+              'sensorData': sensorData,
+              'mode': mode,
+              'deviceId': deviceId,
+            }),
           )
           .timeout(const Duration(seconds: 60));
       if (response.statusCode == 200) {
