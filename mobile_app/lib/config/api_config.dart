@@ -1,7 +1,7 @@
 class ApiConfig {
   // ── Base URL (Railway deployment) ────────────────
   static const String baseUrl =
-      "https://velopath-smart-bicycle-navigation-app-production.up.railway.app";
+      "https://velopath-smart-bicycle-navigation-app-production-b3f2.up.railway.app";
 
   // ── POI ──────────────────────────────────────────
   static const String pois = "$baseUrl/api/pois";
