@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VeloPath Admin Dashboard</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="dashboard.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<!-- ══ LOGIN ════════════════════════════════════════════════════════════════ -->
+<div id="login-screen">
+  <div class="login-card">
+    <h1>VeloPath Admin</h1>
+    <p>Sign in to access the dashboard</p>
+    <form id="login-form">
+      <input id="login-email"    type="email"    placeholder="Admin email"    required autocomplete="username">
+      <input id="login-password" type="password" placeholder="Password"       required autocomplete="current-password">
+      <button class="btn-primary" type="submit">Sign In</button>
+      <div id="login-error"></div>
+    </form>
+  </div>
+</div>
+
+<!-- ══ APP ══════════════════════════════════════════════════════════════════ -->
+<div id="app">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">Velo<span>Path</span></div>
+    <nav>
+      <div class="nav-item" data-page="users">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Users
+      </div>
+      <div class="nav-item" data-page="analytics">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        Analytics
+      </div>
+      <div class="nav-item" data-page="map">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+        Hazard Map
+      </div>
+      <div class="nav-item" data-page="system">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        System Health
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <div id="admin-email-display"></div>
+      <button id="logout-btn">Sign out</button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="topbar">
+      <h2 id="topbar-title">Dashboard</h2>
+      <span class="text-muted" style="font-size:12px">Travalia Data Platform</span>
+    </div>
+    <div class="content">
+
+      <!-- ══ PAGE: USERS ══════════════════════════════════════════════════ -->
+      <div id="page-users" class="page">
+        <div class="toolbar">
+          <input id="user-search" type="text" placeholder="Search name or email…" style="width:220px">
+          <select id="filter-country">
+            <option value="">All Countries</option>
+            <option>Australia</option><option>Germany</option><option>France</option>
+            <option>United Kingdom</option><option>United States</option><option>Sri Lanka</option>
+            <option>Japan</option><option>China</option><option>India</option><option>Canada</option>
+          </select>
+          <select id="filter-active">
+            <option value="">All Status</option>
+            <option value="true">Active</option>
+            <option value="false">Inactive</option>
+          </select>
+          <input id="filter-date-from" type="date" title="Joined from">
+          <input id="filter-date-to"   type="date" title="Joined to">
+          <button id="export-csv-btn" class="btn btn-accent">↓ Export CSV</button>
+        </div>
+        <div class="card" style="padding:0">
+          <div class="table-wrap">
+            <table>
+              <thead><tr>
+                <th>ID</th><th>Name</th><th>Email</th><th>Country</th>
+                <th>Joined</th><th>Rides</th><th>Distance</th><th>Hazards</th>
+                <th>Last Active</th><th>Status</th><th>Actions</th>
+              </tr></thead>
+              <tbody id="users-tbody">
+                <tr><td colspan="11" class="loading"><div class="spinner"></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="pagination" style="padding:14px 20px">
+            <span id="pagination-info" class="text-muted"></span>
+            <div class="page-btns">
+              <button id="page-prev" class="btn btn-sm">← Prev</button>
+              <button id="page-next" class="btn btn-sm">Next →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ PAGE: USER PROFILE ═══════════════════════════════════════════ -->
+      <div id="page-user-profile" class="page">
+        <div id="profile-content"></div>
+      </div>
+
+      <!-- ══ PAGE: ANALYTICS ═════════════════════════════════════════════ -->
+      <div id="page-analytics" class="page">
+        <div class="tabs">
+          <div class="tab active" data-tab="countries">Country Breakdown</div>
+          <div class="tab" data-tab="poi-trends">POI Trends</div>
+          <div class="tab" data-tab="routes">Route Modes</div>
+          <div class="tab" data-tab="travalia">Travalia Export</div>
+        </div>
+        <div id="analytics-content"></div>
+      </div>
+
+      <!-- ══ PAGE: HAZARD MAP ═════════════════════════════════════════════ -->
+      <div id="page-map" class="page">
+        <div class="toolbar" style="margin-bottom:12px">
+          <select id="map-filter-type">
+            <option value="">All Types</option>
+            <option value="pothole">Pothole</option>
+            <option value="bump">Bump</option>
+            <option value="rough">Rough</option>
+          </select>
+          <select id="map-filter-status">
+            <option value="">All Status</option>
+            <option value="verified">Verified</option>
+            <option value="pending">Pending</option>
+          </select>
+          <input id="map-filter-confidence" type="number" placeholder="Min confidence (0–1)" step="0.1" min="0" max="1" style="width:180px">
+          <input id="map-filter-from" type="date">
+          <input id="map-filter-to"   type="date">
+          <button id="map-filter-btn"     class="btn btn-accent">Apply Filters</button>
+          <button id="map-export-geojson" class="btn">↓ GeoJSON</button>
+          <span id="hazard-count" class="text-muted" style="font-size:12px"></span>
+        </div>
+        <div id="map-container"></div>
+        <div style="margin-top:10px;display:flex;gap:16px">
+          <div class="map-legend">
+            <span class="legend-dot" style="background:#ff5e5e"></span>Pothole
+            <span class="legend-dot" style="background:#f5c842;margin-left:8px"></span>Bump
+            <span class="legend-dot" style="background:#ff9f40;margin-left:8px"></span>Rough
+          </div>
+          <div class="text-muted" style="font-size:11px;align-self:center">Circle size = confidence score</div>
+        </div>
+      </div>
+
+      <!-- ══ PAGE: SYSTEM HEALTH ══════════════════════════════════════════ -->
+      <div id="page-system" class="page">
+        <div id="system-content"></div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+  // Chart.js global defaults (dark theme)
+  Chart.defaults.color = "#8892a4";
+  Chart.defaults.borderColor = "#2e3150";
+  Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
+</script>
+<script src="dashboard.js"></script>
+</body>
+</html>

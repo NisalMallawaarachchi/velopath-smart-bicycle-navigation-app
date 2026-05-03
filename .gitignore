@@ -83,6 +83,14 @@ backend/yarn.lock
 backend/.eslintcache
 
 # =========================================================
+# 🖥️ Admin Dashboard
+# =========================================================
+admin-dashboard/node_modules/
+admin-dashboard/dist/
+admin-dashboard/build/
+admin-dashboard/.env
+
+# =========================================================
 # 🗃️ Database
 # =========================================================
 database/*.bak
