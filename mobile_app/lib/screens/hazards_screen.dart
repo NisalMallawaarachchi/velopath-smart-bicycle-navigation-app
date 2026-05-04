@@ -1,4 +1,5 @@
 // screens/hazards_screen.dart
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -23,11 +24,13 @@ class _HazardsScreenState extends State<HazardsScreen> {
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   List<Map<String, dynamic>> _hazards = [];
-  final Set<String> _votedHazardIds = {}; // Track voted hazards locally
+  final Set<String> _votedHazardIds = {};
   bool _loading = true;
   String? _error;
-  LatLng _center = const LatLng(6.9271, 79.8612); // Default: Colombo
+  LatLng _center = const LatLng(6.9271, 79.8612); // fallback until GPS resolves
   bool _mapReady = false;
+  LatLng? _lastLoadedCenter;
+  Timer? _panDebounce;
 
   @override
   void initState() {
@@ -35,18 +38,19 @@ class _HazardsScreenState extends State<HazardsScreen> {
     _loadHazards();
   }
 
+  @override
+  void dispose() {
+    _panDebounce?.cancel();
+    super.dispose();
+  }
+
   // ─────────────────────────────────────────────────────────
   // DATA LOADING
   // ─────────────────────────────────────────────────────────
 
+  // Re-centres on GPS then fetches hazards around that point.
   Future<void> _loadHazards() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-
     try {
-      // Get GPS location
       LocationPermission perm = await Geolocator.checkPermission();
       if (perm == LocationPermission.denied) {
         perm = await Geolocator.requestPermission();
@@ -58,29 +62,39 @@ class _HazardsScreenState extends State<HazardsScreen> {
         ).timeout(const Duration(seconds: 8));
         _center = LatLng(pos.latitude, pos.longitude);
       }
+    } catch (_) {
+      // GPS unavailable — keep current _center as fallback
+    }
+    await _fetchHazards(_center);
+  }
 
-      // Fetch hazards in bounding box (~2km radius)
-      const double delta = 0.018;
-      final uri = Uri.parse(
-        '${ApiConfig.hazards}'
-        '?minLat=${_center.latitude - delta}'
-        '&maxLat=${_center.latitude + delta}'
-        '&minLon=${_center.longitude - delta}'
-        '&maxLon=${_center.longitude + delta}'
-        '&minConfidence=0.3',
-      );
+  // Fetches hazards within ~15 km of [center] and moves the map there.
+  Future<void> _fetchHazards(LatLng center) async {
+    if (!mounted) return;
+    setState(() { _loading = true; _error = null; });
 
+    const double delta = 0.15; // ~15 km — matches admin dashboard viewport
+    final uri = Uri.parse(
+      '${ApiConfig.hazards}'
+      '?minLat=${center.latitude - delta}'
+      '&maxLat=${center.latitude + delta}'
+      '&minLon=${center.longitude - delta}'
+      '&maxLon=${center.longitude + delta}'
+      '&minConfidence=0.3',
+    );
+
+    try {
       final response = await http.get(uri).timeout(const Duration(seconds: 15));
+      if (!mounted) return;
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         setState(() {
           _hazards = List<Map<String, dynamic>>.from(data['hazards'] ?? []);
           _loading = false;
+          _lastLoadedCenter = center;
         });
-        if (_mapReady) {
-          _mapController.move(_center, 15.0);
-        }
+        if (_mapReady) _mapController.move(center, 13.0);
       } else {
         setState(() {
           _error = 'Server error (${response.statusCode})';
@@ -88,6 +102,7 @@ class _HazardsScreenState extends State<HazardsScreen> {
         });
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = 'Could not load hazards: $e';
         _loading = false;
@@ -471,10 +486,24 @@ class _HazardsScreenState extends State<HazardsScreen> {
             mapController: _mapController,
             options: MapOptions(
               initialCenter: _center,
-              initialZoom: 15.0,
+              initialZoom: 13.0,
               onMapReady: () {
                 setState(() => _mapReady = true);
-                _mapController.move(_center, 15.0);
+                _mapController.move(_center, 13.0);
+              },
+              onMapEvent: (event) {
+                if (event is! MapEventMoveEnd) return;
+                final newCenter = event.camera.center;
+                final loaded = _lastLoadedCenter;
+                if (loaded == null) return;
+                final distM = const Distance().as(
+                  LengthUnit.Meter, loaded, newCenter);
+                if (distM < 2000) return; // only reload after 2 km pan
+                _panDebounce?.cancel();
+                _panDebounce = Timer(const Duration(milliseconds: 600), () {
+                  _center = newCenter;
+                  _fetchHazards(newCenter);
+                });
               },
             ),
             children: [
@@ -639,6 +668,19 @@ class _HazardsScreenState extends State<HazardsScreen> {
                 ),
               ),
             ),
+
+          // ── LOCATE ME FAB ────────────────────────────────
+          Positioned(
+            bottom: authProvider.isLoggedIn ? 16 : 80,
+            right: 16,
+            child: FloatingActionButton.small(
+              heroTag: 'locate',
+              backgroundColor: primaryColor,
+              onPressed: _loading ? null : _loadHazards,
+              tooltip: 'Centre on my location',
+              child: const Icon(Icons.my_location, color: Colors.white),
+            ),
+          ),
 
           // ── LEGEND ───────────────────────────────────────
           Positioned(
