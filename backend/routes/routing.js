@@ -371,7 +371,7 @@ router.get("/route", async (req, res) => {
 
     // Multiplicative Cost formula
     let costExpr = `length_m * ${w_d}`;
-    let hazardExpr = w_s > 0 ? `(1.0 + (${w_s} * COALESCE((SELECT COUNT(*) FROM public.hazards h WHERE ST_DWithin(w.geom, h.location, 0.0005)), 0) * 10.0))` : `1.0`;
+    let hazardExpr = w_s > 0 ? `(1.0 + (${w_s} * COALESCE((SELECT COUNT(*) FROM public.hazards h WHERE ST_DWithin(w.geom, h.location, 0.0005) AND h.status IN ('pending','verified')), 0) * 10.0))` : `1.0`;
     let scenicExpr = w_sc > 0 ? `GREATEST(0.01, 1.0 - (${w_sc} * COALESCE((SELECT SUM(p.score) FROM public.custom_pois p WHERE ST_DWithin(w.geom, p.geom, 0.001)), 0) / 5.0))` : `1.0`;
 
     const bboxFilter = `ST_Intersects(w.geom, ST_Expand(ST_SetSRID(ST_MakeBox2D(ST_Point(${startLon}, ${startLat}), ST_Point(${endLon}, ${endLat})), 4326), ${expandDeg}))`;
@@ -388,7 +388,7 @@ router.get("/route", async (req, res) => {
     // NOTE: Node IDs are embedded directly to avoid parameterized query issues with pgr_dijkstra
     const outerQuery = (innerEdgeSql) => `
 SELECT w.id, w.length_m, w.name,
-  EXISTS (SELECT 1 FROM public.hazards h WHERE ST_DWithin(w.geom, h.location, 0.0005)) AS has_hazard,
+  EXISTS (SELECT 1 FROM public.hazards h WHERE ST_DWithin(w.geom, h.location, 0.0005) AND h.status IN ('pending','verified')) AS has_hazard,
   COALESCE((SELECT AVG(p.score) FROM public.custom_pois p WHERE ST_DWithin(w.geom, p.geom, 0.0005)), 0) AS poi_score,
   ST_AsGeoJSON(CASE WHEN r.node = w.target THEN ST_Reverse(w.geom) ELSE w.geom END) AS geojson,
   r.seq
