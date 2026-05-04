@@ -500,15 +500,14 @@ ORDER BY r.seq;
       );
       routePoisRows = routePoisQ.rows;
 
-      // Fetch Top 5 Hazards along this precise route, ensuring id is cast to string and hazard_type is selected
       const routeHazardsQ = await db.query(
         `
         SELECT id::text, hazard_type as type, confidence_score, ST_Y(location) as lat, ST_X(location) as lon
         FROM public.hazards
-        WHERE ST_DWithin(location, ST_GeomFromEWKT($1), 0.0005) -- within ~50m
+        WHERE ST_DWithin(location, ST_GeomFromEWKT($1), 0.001) -- within ~110m
           AND status IN ('pending', 'verified')
         ORDER BY confidence_score DESC
-        LIMIT 5;
+        LIMIT 50;
         `,
         [lineStringWKT]
       );
