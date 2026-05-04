@@ -16,7 +16,7 @@
 
 
     <application
-        android:label="velopath_smart_bicycle_navigation_app"
+        android:label="VeloPath"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">
