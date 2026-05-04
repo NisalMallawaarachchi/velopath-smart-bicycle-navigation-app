@@ -1,0 +1,11 @@
+{
+  "timestamp": 1777876776,
+  "results": {
+    "RandomForest": 0.7936636880584891,
+    "CNN": 0.6978066612510154,
+    "LSTM": 0.5889520714865962
+  },
+  "best": "RandomForest",
+  "train_size": 4927,
+  "test_size": 1231
+}

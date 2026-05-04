@@ -121,6 +121,15 @@ build/
 backend/osm_data/
 
 # =========================================================
+# 🤖 ML generated / versioned artefacts (large binaries)
+# =========================================================
+backend/ml/training_data.json
+backend/ml/model_versions/*.pkl
+backend/ml/model_versions/*.h5
+backend/ml/__pycache__/
+.claude/
+
+# =========================================================
 # 📑 Documentation builds
 # =========================================================
 doc/api/

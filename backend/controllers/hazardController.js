@@ -1,5 +1,11 @@
 // hazardController.js
 // Controller for road hazard detection using Python ML model
+//
+// ML_MODE env var controls the prediction backend:
+//   "fastapi"    — HTTP call to FastAPI microservice (low latency, model in memory)
+//   "subprocess" — spawn Python process per request (default fallback)
+//
+// FastAPI endpoint: ML_SERVICE_URL env var (default http://localhost:8001)
 
 import { spawn } from "child_process";
 import path from "path";
@@ -10,11 +16,41 @@ import pool from "../config/db.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PYTHON_PATH = process.env.PYTHON_PATH || "python3";
-const ML_DIR = path.join(__dirname, "..", "ml");
+const PYTHON_PATH    = process.env.PYTHON_PATH    || "python3";
+const ML_DIR         = path.join(__dirname, "..", "ml");
+const ML_MODE        = process.env.ML_MODE        || "subprocess";   // "fastapi" | "subprocess"
+const ML_SERVICE_URL = process.env.ML_SERVICE_URL || "http://localhost:8001";
 
 // Serialises concurrent writes to training_data.json — prevents race condition
 let _trainingWriteLock = Promise.resolve();
+
+// ── FastAPI HTTP prediction (ML_MODE=fastapi) ─────────────────────────────────
+async function callFastApiPredict(sensorData, calibrationBias = null) {
+  const body = { sensorData, deviceId: "node_backend" };
+  if (calibrationBias) body.calibration_bias = calibrationBias;
+
+  const controller = new AbortController();
+  const timeout    = setTimeout(() => controller.abort(), 30_000);
+
+  try {
+    const resp = await fetch(`${ML_SERVICE_URL}/predict`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(body),
+      signal:  controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (!resp.ok) {
+      const err = await resp.text();
+      throw new Error(`FastAPI returned ${resp.status}: ${err.slice(0, 200)}`);
+    }
+    return await resp.json();
+  } catch (err) {
+    clearTimeout(timeout);
+    throw err;
+  }
+}
 
 function safeUnlink(filePath) {
   try { fs.unlinkSync(filePath); } catch (_) { /* already gone */ }
@@ -80,20 +116,29 @@ function validateSensorData(sensorData) {
  */
 export const healthCheck = async (req, res) => {
   try {
-    const modelPath = path.join(ML_DIR, "model.pkl");
+    const modelPath   = path.join(ML_DIR, "model.pkl");
     const modelExists = fs.existsSync(modelPath);
 
+    let fastApiStatus = null;
+    if (ML_MODE === "fastapi") {
+      try {
+        const r = await fetch(`${ML_SERVICE_URL}/health`, { signal: AbortSignal.timeout(3000) });
+        fastApiStatus = await r.json();
+      } catch {
+        fastApiStatus = { status: "unreachable" };
+      }
+    }
+
     res.json({
-      status: "ok",
+      status:             "ok",
+      ml_mode:            ML_MODE,
       mlServiceAvailable: modelExists,
-      pythonPath: PYTHON_PATH,
-      modelPath: modelPath,
+      pythonPath:         PYTHON_PATH,
+      modelPath:          modelPath,
+      fastApi:            fastApiStatus,
     });
   } catch (error) {
-    res.status(500).json({
-      status: "error",
-      message: error.message,
-    });
+    res.status(500).json({ status: "error", message: error.message });
   }
 };
 
@@ -133,15 +178,21 @@ export const predictHazard = async (req, res) => {
       });
     }
 
-    const tempFile = path.join(ML_DIR, `temp_${Date.now()}_${Math.random().toString(36).slice(2)}.json`);
-    fs.writeFileSync(tempFile, JSON.stringify(sensorData));
-
+    let result;
     try {
-      const result = await spawnPython(tempFile);
+      if (ML_MODE === "fastapi") {
+        console.log(`🤖 [ML] Using FastAPI microservice at ${ML_SERVICE_URL}`);
+        result = await callFastApiPredict(sensorData, req.body.calibrationBias || null);
+      } else {
+        const tempFile = path.join(ML_DIR, `temp_${Date.now()}_${Math.random().toString(36).slice(2)}.json`);
+        fs.writeFileSync(tempFile, JSON.stringify(sensorData));
+        result = await spawnPython(tempFile);
+      }
 
       console.log(`🤖 [ML RESULT] Predictions: ${result.predictions?.length || 0} total`);
       const hazardPreds = result.predictions?.filter(p => p.hazard_type !== 'smooth') || [];
       console.log(`🤖 [ML RESULT] Hazards found: ${hazardPreds.length}`);
+      if (result.latency_ms) console.log(`🤖 [ML RESULT] Inference latency: ${result.latency_ms} ms`);
       hazardPreds.forEach(h =>
         console.log(`   🔴 ${h.hazard_type} at (${h.latitude}, ${h.longitude}) conf=${h.confidence}`)
       );
