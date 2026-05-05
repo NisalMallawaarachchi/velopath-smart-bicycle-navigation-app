@@ -97,6 +97,8 @@ class RoutingEngineProvider extends ChangeNotifier {
 
   StreamSubscription<Position>? _posSub;
   int _fetchRouteId = 0;
+  bool _isLoading = false;
+  bool _startIsCurrentLocation = false;
 
   // ================= GETTERS =================
   RouteProfile get activeProfile => _activeProfile;
@@ -109,6 +111,8 @@ class RoutingEngineProvider extends ChangeNotifier {
   List<MapHazard> get routeHazards => _routeHazards;
   int get currentInstructionIndex => _currentInstructionIndex;
   bool get isNavigating => _isNavigating;
+  bool get isLoading => _isLoading;
+  bool get startIsCurrentLocation => _startIsCurrentLocation;
   String? get currentAlertMessage => _currentAlertMessage;
   double get totalDistanceKm => _totalDistanceKm;
   int get totalHazards => _totalHazards;
@@ -211,6 +215,7 @@ class RoutingEngineProvider extends ChangeNotifier {
     if (isStart) {
       _startPoint = LatLng(s.lat, s.lon);
       _startSuggestions.clear();
+      _startIsCurrentLocation = false; // typed/searched location
     } else {
       _endPoint = LatLng(s.lat, s.lon);
       _endSuggestions.clear();
@@ -239,6 +244,7 @@ class RoutingEngineProvider extends ChangeNotifier {
       desiredAccuracy: LocationAccuracy.best,
     );
     _startPoint = LatLng(pos.latitude, pos.longitude);
+    _startIsCurrentLocation = true; // GPS button used
 
     if (_endPoint != null) {
       await _fetchRoute();
@@ -251,6 +257,7 @@ class RoutingEngineProvider extends ChangeNotifier {
   Future<void> _fetchRoute() async {
     final int currentFetchId = ++_fetchRouteId;
 
+    _isLoading = true;
     _routePoints.clear();
     _instructions.clear();
     _segments.clear();
@@ -260,6 +267,7 @@ class RoutingEngineProvider extends ChangeNotifier {
     _totalDistanceKm = 0;
     _totalHazards = 0;
     _avgPoiScore = 0.0;
+    notifyListeners();
 
     try {
       final profileParam = _profileToParam(_activeProfile);
@@ -389,6 +397,11 @@ class RoutingEngineProvider extends ChangeNotifier {
     } catch (e, stackTrace) {
       print("❌ ERROR in _fetchRoute: $e");
       print("❌ Stack trace: $stackTrace");
+    } finally {
+      if (currentFetchId == _fetchRouteId) {
+        _isLoading = false;
+        notifyListeners();
+      }
     }
   }
 
